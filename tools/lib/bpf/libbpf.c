@@ -8659,7 +8659,7 @@ static bool sec_def_matches(const struct bpf_sec_def *sec_def, const char *sec_n
 		return false;
 	}
 
-	return strcmp(sec_name, sec_def->sec) == 0;
+	return strncmp(sec_name, sec_def->sec, len) == 0;
 }
 
 static const struct bpf_sec_def *find_sec_def(const char *sec_name)
