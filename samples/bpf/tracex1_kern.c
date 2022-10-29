@@ -23,7 +23,7 @@
  * Number of arguments and their positions can change, etc.
  * In such case this bpf+kprobe example will no longer be meaningful
  */
-SEC("kprobe/__netif_receive_skb_core")
+SEC("kprobe/__netif_receive_skb_core.constprop.0")
 int bpf_prog1(struct pt_regs *ctx)
 {
 	/* attaches to kprobe __netif_receive_skb_core,
