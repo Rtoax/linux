@@ -2,7 +2,15 @@
 
 :Original: :ref:`Documentation/arm64/elf_hwcaps.rst <elf_hwcaps_index>`
 
-Translator: Bailu Lin <bailu.lin@vivo.com>
+:Translator:
+
+ Bailu Lin <bailu.lin@vivo.com>
+
+:校译:
+
+ 荣涛 Rong Tao <rongtao@cestc.cn>
+
+.. _cn_elf_hwcaps_index:
 
 ================
 ARM64 ELF hwcaps
@@ -65,7 +73,7 @@ HWCAP_ASIMD
     ID_AA64PFR0_EL1.AdvSIMD == 0b0000 表示有此功能。
 
 HWCAP_EVTSTRM
-    通用计时器频率配置为大约100KHz以生成事件。
+    通用计时器频率配置为大约10KHz以生成事件。
 
 HWCAP_AES
     ID_AA64ISAR0_EL1.AES == 0b0001 表示有此功能。
@@ -162,77 +170,109 @@ HWCAP_PACG
     表示有此功能。
 
 HWCAP2_DCPODP
-
     ID_AA64ISAR1_EL1.DPB == 0b0010 表示有此功能。
 
 HWCAP2_SVE2
-
     ID_AA64ZFR0_EL1.SVEVer == 0b0001 表示有此功能。
 
 HWCAP2_SVEAES
-
     ID_AA64ZFR0_EL1.AES == 0b0001 表示有此功能。
 
 HWCAP2_SVEPMULL
-
     ID_AA64ZFR0_EL1.AES == 0b0010 表示有此功能。
 
 HWCAP2_SVEBITPERM
-
     ID_AA64ZFR0_EL1.BitPerm == 0b0001 表示有此功能。
 
 HWCAP2_SVESHA3
-
     ID_AA64ZFR0_EL1.SHA3 == 0b0001 表示有此功能。
 
 HWCAP2_SVESM4
-
     ID_AA64ZFR0_EL1.SM4 == 0b0001 表示有此功能。
 
 HWCAP2_FLAGM2
-
     ID_AA64ISAR0_EL1.TS == 0b0010 表示有此功能。
 
 HWCAP2_FRINT
-
     ID_AA64ISAR1_EL1.FRINTTS == 0b0001 表示有此功能。
 
 HWCAP2_SVEI8MM
-
     ID_AA64ZFR0_EL1.I8MM == 0b0001 表示有此功能。
 
 HWCAP2_SVEF32MM
-
     ID_AA64ZFR0_EL1.F32MM == 0b0001 表示有此功能。
 
 HWCAP2_SVEF64MM
-
     ID_AA64ZFR0_EL1.F64MM == 0b0001 表示有此功能。
 
 HWCAP2_SVEBF16
-
     ID_AA64ZFR0_EL1.BF16 == 0b0001 表示有此功能。
 
 HWCAP2_I8MM
-
     ID_AA64ISAR1_EL1.I8MM == 0b0001 表示有此功能。
 
 HWCAP2_BF16
-
     ID_AA64ISAR1_EL1.BF16 == 0b0001 表示有此功能。
 
 HWCAP2_DGH
-
     ID_AA64ISAR1_EL1.DGH == 0b0001 表示有此功能。
 
 HWCAP2_RNG
-
     ID_AA64ISAR0_EL1.RNDR == 0b0001 表示有此功能。
 
 HWCAP2_BTI
-
     ID_AA64PFR0_EL1.BT == 0b0001 表示有此功能。
 
+HWCAP2_MTE
+    ID_AA64PFR1_EL1.MTE == 0b0010 表示有此功能，如
+    Documentation/arm64/memory-tagging-extension.rst 所描述。
+
+HWCAP2_ECV
+    ID_AA64MMFR0_EL1.ECV == 0b0001 表示有此功能。
+
+HWCAP2_AFP
+    ID_AA64MFR1_EL1.AFP == 0b0001 表示有此功能。
+
+HWCAP2_RPRES
+    ID_AA64ISAR2_EL1.RPRES == 0b0001 表示有此功能。
+
+HWCAP2_MTE3
+    ID_AA64PFR1_EL1.MTE == 0b0011 表示有此功能，如
+    Documentation/arm64/memory-tagging-extension.rst 所描述。
+
+HWCAP2_SME
+    ID_AA64PFR1_EL1.SME == 0b0001 表示有此功能，如
+    Documentation/arm64/sme.rst 所描述。
+
+HWCAP2_SME_I16I64
+    ID_AA64SMFR0_EL1.I16I64 == 0b1111 表示有此功能。
+
+HWCAP2_SME_F64F64
+    ID_AA64SMFR0_EL1.F64F64 == 0b1 表示有此功能。
+
+HWCAP2_SME_I8I32
+    ID_AA64SMFR0_EL1.I8I32 == 0b1111 表示有此功能。
+
+HWCAP2_SME_F16F32
+    ID_AA64SMFR0_EL1.F16F32 == 0b1 表示有此功能。
+
+HWCAP2_SME_B16F32
+    ID_AA64SMFR0_EL1.B16F32 == 0b1 表示有此功能。
+
+HWCAP2_SME_F32F32
+    ID_AA64SMFR0_EL1.F32F32 == 0b1 表示有此功能。
+
+HWCAP2_SME_FA64
+    ID_AA64SMFR0_EL1.FA64 == 0b1 表示有此功能。
+
+HWCAP2_WFXT
+    ID_AA64ISAR2_EL1.WFXT == 0b0010 表示有此功能。
+
+HWCAP2_EBF16
+    ID_AA64ISAR1_EL1.BF16 == 0b0010 表示有此功能。
+
+HWCAP2_SVE_EBF16
+    ID_AA64ZFR0_EL1.BF16 == 0b0010 表示有此功能。
 
 4. 未使用的 AT_HWCAP 位
 -----------------------
