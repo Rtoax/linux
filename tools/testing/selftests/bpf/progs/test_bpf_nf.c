@@ -2,6 +2,7 @@
 #include <vmlinux.h>
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_endian.h>
+#include <bpf/bpf_core_read.h>
 
 #define EAFNOSUPPORT 97
 #define EPROTO 71
@@ -10,6 +11,11 @@
 #define ENOENT 2
 
 extern unsigned long CONFIG_HZ __kconfig;
+
+enum nf_nat_manip_type___x {
+	NF_NAT_MANIP_SRC___x,
+	NF_NAT_MANIP_DST___x,
+};
 
 int test_einval_bpf_tuple = 0;
 int test_einval_reserved = 0;
@@ -58,7 +64,7 @@ int bpf_ct_change_timeout(struct nf_conn *, u32) __ksym;
 int bpf_ct_set_status(struct nf_conn *, u32) __ksym;
 int bpf_ct_change_status(struct nf_conn *, u32) __ksym;
 int bpf_ct_set_nat_info(struct nf_conn *, union nf_inet_addr *,
-			int port, enum nf_nat_manip_type) __ksym;
+			int port, int type) __ksym;
 
 static __always_inline void
 nf_ct_test(struct nf_conn *(*lookup_fn)(void *, struct bpf_sock_tuple *, u32,
@@ -151,16 +157,34 @@ nf_ct_test(struct nf_conn *(*lookup_fn)(void *, struct bpf_sock_tuple *, u32,
 		union nf_inet_addr saddr = {};
 		union nf_inet_addr daddr = {};
 		struct nf_conn *ct_ins;
+		int manip_src;
+		int manip_dst;
+		enum nf_nat_manip_type___x mapip_type_x;
+
+		if (!bpf_core_type_exists(enum nf_nat_manip_type)) {
+			bpf_printk("enum nf_nat_manip_type not exist.\n");
+			return;
+		}
+
+		if (bpf_core_enum_value_exists(mapip_type_x, NF_NAT_MANIP_SRC___x))
+			manip_src = bpf_core_enum_value(mapip_type_x, NF_NAT_MANIP_SRC___x);
+		else
+			return;
+
+		if (bpf_core_enum_value_exists(mapip_type_x, NF_NAT_MANIP_DST___x))
+			manip_dst = bpf_core_enum_value(mapip_type_x, NF_NAT_MANIP_DST___x);
+		else
+			return;
 
 		bpf_ct_set_timeout(ct, 10000);
 		ct->mark = 77;
 
 		/* snat */
 		saddr.ip = bpf_get_prandom_u32();
-		bpf_ct_set_nat_info(ct, &saddr, sport, NF_NAT_MANIP_SRC);
+		bpf_ct_set_nat_info(ct, &saddr, sport, manip_src);
 		/* dnat */
 		daddr.ip = bpf_get_prandom_u32();
-		bpf_ct_set_nat_info(ct, &daddr, dport, NF_NAT_MANIP_DST);
+		bpf_ct_set_nat_info(ct, &daddr, dport, manip_dst);
 
 		ct_ins = bpf_ct_insert_entry(ct);
 		if (ct_ins) {
