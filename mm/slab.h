@@ -227,10 +227,76 @@ struct kmem_cache {
 
 #ifdef CONFIG_SLAB
 #include <linux/slab_def.h>
+
+static inline void *nearest_obj(struct kmem_cache *cache, const struct slab *slab,
+				void *x)
+{
+	void *object = x - (x - slab->s_mem) % cache->size;
+	void *last_object = slab->s_mem + (cache->num - 1) * cache->size;
+
+	if (unlikely(object > last_object))
+		return last_object;
+	else
+		return object;
+}
+
+/*
+ * We want to avoid an expensive divide : (offset / cache->size)
+ *   Using the fact that size is a constant for a particular cache,
+ *   we can replace (offset / cache->size) by
+ *   reciprocal_divide(offset, cache->reciprocal_buffer_size)
+ */
+static inline unsigned int obj_to_index(const struct kmem_cache *cache,
+					const struct slab *slab, void *obj)
+{
+	u32 offset = (obj - slab->s_mem);
+	return reciprocal_divide(offset, cache->reciprocal_buffer_size);
+}
+
+static inline int objs_per_slab(const struct kmem_cache *cache,
+				     const struct slab *slab)
+{
+	if (is_kfence_address(slab_address(slab)))
+		return 1;
+	return cache->num;
+}
 #endif
 
 #ifdef CONFIG_SLUB
 #include <linux/slub_def.h>
+
+static inline void *nearest_obj(struct kmem_cache *cache, const struct slab *slab,
+				void *x) {
+	void *object = x - (x - slab_address(slab)) % cache->size;
+	void *last_object = slab_address(slab) +
+		(slab->objects - 1) * cache->size;
+	void *result = (unlikely(object > last_object)) ? last_object : object;
+
+	result = fixup_red_left(cache, result);
+	return result;
+}
+
+/* Determine object index from a given position */
+static inline unsigned int __obj_to_index(const struct kmem_cache *cache,
+					  void *addr, void *obj)
+{
+	return reciprocal_divide(kasan_reset_tag(obj) - addr,
+				 cache->reciprocal_size);
+}
+
+static inline unsigned int obj_to_index(const struct kmem_cache *cache,
+					const struct slab *slab, void *obj)
+{
+	if (is_kfence_address(obj))
+		return 0;
+	return __obj_to_index(cache, slab_address(slab), obj);
+}
+
+static inline int objs_per_slab(const struct kmem_cache *cache,
+				     const struct slab *slab)
+{
+	return slab->objects;
+}
 #endif
 
 #include <linux/memcontrol.h>
