@@ -6,6 +6,8 @@
 #define SYSCALL(SYS) "__x64_" __stringify(SYS)
 #elif defined(__s390x__)
 #define SYSCALL(SYS) "__s390x_" __stringify(SYS)
+#elif defined(__aarch64__)
+#define SYSCALL(SYS) "__arm64_" __stringify(SYS)
 #else
 #define SYSCALL(SYS)  __stringify(SYS)
 #endif
