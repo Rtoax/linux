@@ -337,6 +337,8 @@ static void help(void)
 		" [--batch=random/N]"
 		" [--reset=N]"
 		"\n");
+
+	exit(0);
 }
 
 int main(int argc, char **argv)
@@ -354,14 +356,12 @@ int main(int argc, char **argv)
 		case -1:
 			goto done;
 		case '?':
-			help();
 			exit(2);
 		case 'e':
 			features &= ~(1ULL << VIRTIO_RING_F_EVENT_IDX);
 			break;
 		case 'h':
 			help();
-			goto done;
 		case 'i':
 			features &= ~(1ULL << VIRTIO_RING_F_INDIRECT_DESC);
 			break;
