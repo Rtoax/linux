@@ -14,7 +14,7 @@
 
 #define DEBUGFS "/sys/kernel/debug/tracing/"
 
-#define MAX_SYMS 300000
+#define MAX_SYMS 400000
 static struct ksym syms[MAX_SYMS];
 static int sym_cnt;
 
@@ -44,7 +44,8 @@ int load_kallsyms_refresh(void)
 			continue;
 		syms[i].addr = (long) addr;
 		syms[i].name = strdup(func);
-		i++;
+		if (++i >= MAX_SYMS)
+			break;
 	}
 	fclose(f);
 	sym_cnt = i;
