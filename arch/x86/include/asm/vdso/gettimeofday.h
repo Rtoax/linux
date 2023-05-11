@@ -228,7 +228,7 @@ static u64 vread_pvclock(void)
 		if (unlikely(!(pvti->flags & PVCLOCK_TSC_STABLE_BIT)))
 			return U64_MAX;
 
-		ret = __pvclock_read_cycles(pvti, rdtsc_ordered());
+		ret = __pvclock_read_cycles(pvti, rdtsc());
 	} while (pvclock_read_retry(pvti, version));
 
 	return ret;
@@ -246,7 +246,7 @@ static inline u64 __arch_get_hw_counter(s32 clock_mode,
 					const struct vdso_data *vd)
 {
 	if (likely(clock_mode == VDSO_CLOCKMODE_TSC))
-		return (u64)rdtsc_ordered();
+		return (u64)rdtsc();
 	/*
 	 * For any memory-mapped vclock type, we need to make sure that gcc
 	 * doesn't cleverly hoist a load before the mode check.  Otherwise we
