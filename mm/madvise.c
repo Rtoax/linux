@@ -1287,6 +1287,21 @@ static int madvise_vma_anon_name(struct vm_area_struct *vma,
 	return error;
 }
 
+struct anon_vma_name *madvise_get_anon_name(struct mm_struct *mm,
+						  unsigned long start)
+{
+	struct vm_area_struct *vma;
+	struct anon_vma_name *anon_name = NULL;
+
+	vma = find_vma(mm, start);
+	if (vma) {
+		anon_name = anon_vma_name(vma);
+		anon_vma_name_get(anon_name);
+	}
+
+	return anon_name;
+}
+
 int madvise_set_anon_name(struct mm_struct *mm, unsigned long start,
 			  unsigned long len_in, struct anon_vma_name *anon_name)
 {
