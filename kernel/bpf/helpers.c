@@ -278,6 +278,29 @@ const struct bpf_func_proto bpf_get_current_comm_proto = {
 	.arg2_type	= ARG_CONST_SIZE,
 };
 
+BPF_CALL_2(bpf_getcwd, char *, buf, u32, size)
+{
+	struct task_struct *task = current;
+
+	if (unlikely(!task))
+		goto err_clear;
+
+	/* Verifier guarantees that size > 0 */
+	strscpy_pad(buf, task->comm, size);
+	return 0;
+err_clear:
+	memset(buf, 0, size);
+	return -EINVAL;
+}
+
+const struct bpf_func_proto bpf_getcwd_proto = {
+	.func		= bpf_getcwd,
+	.gpl_only	= false,
+	.ret_type	= RET_INTEGER,
+	.arg1_type	= ARG_PTR_TO_UNINIT_MEM,
+	.arg2_type	= ARG_CONST_SIZE,
+};
+
 #if defined(CONFIG_QUEUED_SPINLOCKS) || defined(CONFIG_BPF_ARCH_SPINLOCK)
 
 static inline void __bpf_spin_lock(struct bpf_spin_lock *lock)
