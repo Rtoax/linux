@@ -1270,6 +1270,11 @@ static int do_create(int argc, char **argv)
 		} else if (is_prefix(*argv, "name")) {
 			NEXT_ARG();
 			map_name = GET_ARG();
+			if (strlen(map_name) > BPF_OBJ_NAME_LEN - 1) {
+				p_err("map name must be no longer than %d characters\n",
+				      BPF_OBJ_NAME_LEN - 1);
+				goto exit;
+			}
 		} else if (is_prefix(*argv, "key")) {
 			if (parse_u32_arg(&argc, &argv, &key_size,
 					  "key size"))
