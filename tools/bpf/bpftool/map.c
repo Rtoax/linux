@@ -1330,6 +1330,12 @@ offload_dev:
 		goto exit;
 	}
 
+	if (strlen(map_name) > BPF_OBJ_NAME_LEN - 1) {
+		p_err("The map name is too long, should be less than %d\n",
+		      BPF_OBJ_NAME_LEN - 1);
+		goto exit;
+	}
+
 	set_max_rlimit();
 
 	fd = bpf_map_create(map_type, map_name, key_size, value_size, max_entries, &attr);
