@@ -158,11 +158,7 @@ static const struct device_type idxd_cdev_file_type = {
 static void idxd_cdev_dev_release(struct device *dev)
 {
 	struct idxd_cdev *idxd_cdev = dev_to_cdev(dev);
-	struct idxd_cdev_context *cdev_ctx;
-	struct idxd_wq *wq = idxd_cdev->wq;
 
-	cdev_ctx = &ictx[wq->idxd->data->type];
-	ida_free(&cdev_ctx->minor_ida, idxd_cdev->minor);
 	kfree(idxd_cdev);
 }
 
@@ -232,7 +228,7 @@ static int idxd_cdev_open(struct inode *inode, struct file *filp)
 
 	dev_dbg(dev, "%s called: %d\n", __func__, idxd_wq_refcount(wq));
 
-	ctx = kzalloc(sizeof(*ctx), GFP_KERNEL);
+	ctx = kzalloc_obj(*ctx);
 	if (!ctx)
 		return -ENOMEM;
 
@@ -349,7 +345,9 @@ static void idxd_cdev_evl_drain_pasid(struct idxd_wq *wq, u32 pasid)
 			set_bit(h, evl->bmap);
 		h = (h + 1) % size;
 	}
-	drain_workqueue(wq->wq);
+	if (wq->wq)
+		drain_workqueue(wq->wq);
+
 	mutex_unlock(&evl->lock);
 }
 
@@ -442,10 +440,12 @@ static int idxd_submit_user_descriptor(struct idxd_user_context *ctx,
 	 * DSA devices are capable of indirect ("batch") command submission.
 	 * On devices where direct user submissions are not safe, we cannot
 	 * allow this since there is no good way for us to verify these
-	 * indirect commands.
+	 * indirect commands. Narrow the restriction of operations with the
+	 * BATCH opcode to only DSA version 1 devices.
 	 */
 	if (is_dsa_dev(idxd_dev) && descriptor.opcode == DSA_OPCODE_BATCH &&
-		!wq->idxd->user_submission_safe)
+	    wq->idxd->hw.version == DEVICE_VERSION_1 &&
+	    !wq->idxd->user_submission_safe)
 		return -EINVAL;
 	/*
 	 * As per the programming specification, the completion address must be
@@ -534,7 +534,7 @@ int idxd_wq_add_cdev(struct idxd_wq *wq)
 	struct idxd_cdev_context *cdev_ctx;
 	int rc, minor;
 
-	idxd_cdev = kzalloc(sizeof(*idxd_cdev), GFP_KERNEL);
+	idxd_cdev = kzalloc_obj(*idxd_cdev);
 	if (!idxd_cdev)
 		return -ENOMEM;
 
@@ -578,11 +578,15 @@ int idxd_wq_add_cdev(struct idxd_wq *wq)
 
 void idxd_wq_del_cdev(struct idxd_wq *wq)
 {
+	struct idxd_cdev_context *cdev_ctx;
 	struct idxd_cdev *idxd_cdev;
 
 	idxd_cdev = wq->idxd_cdev;
 	wq->idxd_cdev = NULL;
 	cdev_device_del(&idxd_cdev->cdev, cdev_dev(idxd_cdev));
+
+	cdev_ctx = &ictx[wq->idxd->data->type];
+	ida_free(&cdev_ctx->minor_ida, idxd_cdev->minor);
 	put_device(cdev_dev(idxd_cdev));
 }
 

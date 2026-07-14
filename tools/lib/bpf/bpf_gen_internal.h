@@ -4,6 +4,7 @@
 #define __BPF_GEN_INTERNAL_H
 
 #include "bpf.h"
+#include "libbpf_internal.h"
 
 struct ksym_relo_desc {
 	const char *name;

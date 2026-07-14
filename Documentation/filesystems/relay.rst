@@ -301,16 +301,6 @@ user-defined data with a channel, and is immediately available
 (including in create_buf_file()) via chan->private_data or
 buf->chan->private_data.
 
-Buffer-only channels
---------------------
-
-These channels have no files associated and can be created with
-relay_open(NULL, NULL, ...). Such channels are useful in scenarios such
-as when doing early tracing in the kernel, before the VFS is up. In these
-cases, one may open a buffer-only channel and then call
-relay_late_setup_files() when the kernel is ready to handle files,
-to expose the buffered data to the userspace.
-
 Channel 'modes'
 ---------------
 
@@ -462,7 +452,7 @@ closed.
 Misc
 ----
 
-Some applications may want to keep a channel around and re-use it
+Some applications may want to keep a channel around and reuse it
 rather than open and close a new channel for each use.  relay_reset()
 can be used for this purpose - it resets a channel to its initial
 state without reallocating channel buffer memory or destroying

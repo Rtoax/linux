@@ -126,7 +126,7 @@ obj-$(CONFIG_PPC_BOOK3S_32)	+= head_book3s_32.o
 obj-$(CONFIG_44x)		+= head_44x.o
 obj-$(CONFIG_PPC_8xx)		+= head_8xx.o
 obj-$(CONFIG_PPC_85xx)		+= head_85xx.o
-extra-y				+= vmlinux.lds
+always-$(KBUILD_BUILTIN)	+= vmlinux.lds
 
 obj-$(CONFIG_RELOCATABLE)	+= reloc_$(BITS).o
 
@@ -148,9 +148,6 @@ pci64-$(CONFIG_PPC64)		+= pci_dn.o pci-hotplug.o isa-bridge.o
 obj-$(CONFIG_PCI)		+= pci_$(BITS).o $(pci64-y) \
 				   pci-common.o pci_of_scan.o
 obj-$(CONFIG_PCI_MSI)		+= msi.o
-
-obj-$(CONFIG_AUDIT)		+= audit.o
-obj64-$(CONFIG_AUDIT)		+= compat_audit.o
 
 obj-y				+= trace/
 
@@ -199,7 +196,9 @@ obj-$(CONFIG_ALTIVEC)		+= vector.o
 
 obj-$(CONFIG_PPC_OF_BOOT_TRAMPOLINE) += prom_init.o
 obj64-$(CONFIG_PPC_OF_BOOT_TRAMPOLINE) += prom_entry_64.o
-extra-$(CONFIG_PPC_OF_BOOT_TRAMPOLINE) += prom_init_check
+ifdef KBUILD_BUILTIN
+always-$(CONFIG_PPC_OF_BOOT_TRAMPOLINE) += prom_init_check
+endif
 
 obj-$(CONFIG_PPC64)		+= $(obj64-y)
 obj-$(CONFIG_PPC32)		+= $(obj32-y)

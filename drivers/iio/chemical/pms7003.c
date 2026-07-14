@@ -14,7 +14,6 @@
 #include <linux/iio/triggered_buffer.h>
 #include <linux/jiffies.h>
 #include <linux/kernel.h>
-#include <linux/mod_devicetable.h>
 #include <linux/module.h>
 #include <linux/mutex.h>
 #include <linux/serdev.h>
@@ -127,8 +126,8 @@ static irqreturn_t pms7003_trigger_handler(int irq, void *p)
 		pms7003_get_pm(frame->data + PMS7003_PM10_OFFSET);
 	mutex_unlock(&state->lock);
 
-	iio_push_to_buffers_with_timestamp(indio_dev, &state->scan,
-					   iio_get_time_ns(indio_dev));
+	iio_push_to_buffers_with_ts(indio_dev, &state->scan, sizeof(state->scan),
+				    iio_get_time_ns(indio_dev));
 err:
 	iio_trigger_notify_done(indio_dev->trig);
 

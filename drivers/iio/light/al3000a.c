@@ -4,7 +4,6 @@
 #include <linux/device.h>
 #include <linux/err.h>
 #include <linux/i2c.h>
-#include <linux/mod_devicetable.h>
 #include <linux/module.h>
 #include <linux/pm.h>
 #include <linux/regmap.h>
@@ -85,9 +84,14 @@ static void al3000a_set_pwr_off(void *_data)
 
 static int al3000a_init(struct al3000a_data *data)
 {
+	struct device *dev = regmap_get_device(data->regmap);
 	int ret;
 
 	ret = al3000a_set_pwr_on(data);
+	if (ret)
+		return ret;
+
+	ret = devm_add_action_or_reset(dev, al3000a_set_pwr_off, data);
 	if (ret)
 		return ret;
 
@@ -157,10 +161,6 @@ static int al3000a_probe(struct i2c_client *client)
 	if (ret)
 		return dev_err_probe(dev, ret, "failed to init ALS\n");
 
-	ret = devm_add_action_or_reset(dev, al3000a_set_pwr_off, data);
-	if (ret)
-		return dev_err_probe(dev, ret, "failed to add action\n");
-
 	return devm_iio_device_register(dev, indio_dev);
 }
 
@@ -182,14 +182,14 @@ static int al3000a_resume(struct device *dev)
 static DEFINE_SIMPLE_DEV_PM_OPS(al3000a_pm_ops, al3000a_suspend, al3000a_resume);
 
 static const struct i2c_device_id al3000a_id[] = {
-	{ "al3000a" },
+	{ .name = "al3000a" },
 	{ }
 };
 MODULE_DEVICE_TABLE(i2c, al3000a_id);
 
 static const struct of_device_id al3000a_of_match[] = {
 	{ .compatible = "dynaimage,al3000a" },
-	{ /* sentinel */ }
+	{ }
 };
 MODULE_DEVICE_TABLE(of, al3000a_of_match);
 

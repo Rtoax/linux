@@ -38,7 +38,7 @@ static int siw_rx_umem(struct siw_rx_stream *srx, struct siw_umem *umem,
 
 		p = siw_get_upage(umem, dest_addr);
 		if (unlikely(!p)) {
-			pr_warn("siw: %s: [QP %u]: bogus addr: %pK, %pK\n",
+			pr_warn("siw: %s: [QP %u]: bogus addr: %p, %p\n",
 				__func__, qp_id(rx_qp(srx)),
 				(void *)(uintptr_t)dest_addr,
 				(void *)(uintptr_t)umem->fp_addr);
@@ -51,7 +51,7 @@ static int siw_rx_umem(struct siw_rx_stream *srx, struct siw_umem *umem,
 		pg_off = dest_addr & ~PAGE_MASK;
 		bytes = min(len, (int)PAGE_SIZE - pg_off);
 
-		siw_dbg_qp(rx_qp(srx), "page %pK, bytes=%u\n", p, bytes);
+		siw_dbg_qp(rx_qp(srx), "page %p, bytes=%u\n", p, bytes);
 
 		dest = kmap_atomic(p);
 		rv = skb_copy_bits(srx->skb, srx->skb_offset, dest + pg_off,
@@ -105,11 +105,11 @@ static int siw_rx_kva(struct siw_rx_stream *srx, void *kva, int len)
 {
 	int rv;
 
-	siw_dbg_qp(rx_qp(srx), "kva: 0x%pK, len: %u\n", kva, len);
+	siw_dbg_qp(rx_qp(srx), "kva: 0x%p, len: %u\n", kva, len);
 
 	rv = skb_copy_bits(srx->skb, srx->skb_offset, kva, len);
 	if (unlikely(rv)) {
-		pr_warn("siw: [QP %u]: %s, len %d, kva 0x%pK, rv %d\n",
+		pr_warn("siw: [QP %u]: %s, len %d, kva 0x%p, rv %d\n",
 			qp_id(rx_qp(srx)), __func__, len, kva, rv);
 
 		return rv;
@@ -844,6 +844,15 @@ int siw_proc_rresp(struct siw_qp *qp)
 	}
 	mem_p = *mem;
 
+	if (unlikely(wqe->processed + srx->fpdu_part_rem > wqe->bytes)) {
+		siw_dbg_qp(qp, "rresp len: %d + %d > %d\n",
+			   wqe->processed, srx->fpdu_part_rem, wqe->bytes);
+		wqe->wc_status = SIW_WC_LOC_LEN_ERR;
+		siw_init_terminate(qp, TERM_ERROR_LAYER_DDP,
+				   DDP_ETYPE_TAGGED_BUF,
+				   DDP_ECODE_T_BASE_BOUNDS, 0);
+		return -EINVAL;
+	}
 	bytes = min(srx->fpdu_part_rem, srx->skb_new);
 	rv = siw_rx_data(mem_p, srx, &frx->pbl_idx,
 			 sge->laddr + wqe->processed, bytes);
@@ -1079,6 +1088,21 @@ static int siw_get_hdr(struct siw_rx_stream *srx)
 		srx->fpdu_part_rcvd += bytes;
 		if (srx->fpdu_part_rcvd < hdrlen)
 			return -EAGAIN;
+	}
+
+	/*
+	 * Peer-controlled mpa_len must not underflow srx->fpdu_part_rem
+	 * in siw_tcp_rx_data(); a negative value flows as a signed copy
+	 * length into siw_check_mem() and skb_copy_bits().
+	 */
+	if (unlikely(be16_to_cpu(c_hdr->mpa_len) + MPA_HDR_SIZE <
+		     iwarp_pktinfo[opcode].hdr_len)) {
+		pr_warn_ratelimited("siw: short mpa_len %u for opcode %u (hdr_len %u)\n",
+				    be16_to_cpu(c_hdr->mpa_len), opcode,
+				    iwarp_pktinfo[opcode].hdr_len);
+		siw_init_terminate(rx_qp(srx), TERM_ERROR_LAYER_LLP,
+				   LLP_ETYPE_MPA, LLP_ECODE_FPDU_START, 0);
+		return -EINVAL;
 	}
 
 	/*
@@ -1435,7 +1459,8 @@ int siw_tcp_rx_data(read_descriptor_t *rd_desc, struct sk_buff *skb,
 		}
 		if (unlikely(rv != 0 && rv != -EAGAIN)) {
 			if ((srx->state > SIW_GET_HDR ||
-			     qp->rx_fpdu->more_ddp_segs) && run_completion)
+			     (qp->rx_fpdu && qp->rx_fpdu->more_ddp_segs)) &&
+			    run_completion)
 				siw_rdmap_complete(qp, rv);
 
 			siw_dbg_qp(qp, "rx error %d, rx state %d\n", rv,

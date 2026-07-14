@@ -4,6 +4,7 @@
 
 #include "acpi.h"
 #include "debug.h"
+#include "fw.h"
 #include "phy.h"
 #include "reg.h"
 #include "sar.h"
@@ -199,7 +200,8 @@ struct rtw89_sar_handler rtw89_sar_handlers[RTW89_SAR_SOURCE_NR] = {
 		typeof(_dev) _d = (_dev);				\
 		BUILD_BUG_ON(!rtw89_sar_handlers[_s].descr_sar_source);	\
 		BUILD_BUG_ON(!rtw89_sar_handlers[_s].query_sar_config);	\
-		lockdep_assert_wiphy(_d->hw->wiphy);			\
+		if (test_bit(RTW89_FLAG_PROBE_DONE, _d->flags))		\
+			lockdep_assert_wiphy(_d->hw->wiphy);		\
 		_d->sar._cfg_name = *(_cfg_data);			\
 		_d->sar.src = _s;					\
 	} while (0)
@@ -499,9 +501,7 @@ static void rtw89_set_sar_from_acpi(struct rtw89_dev *rtwdev)
 	struct rtw89_sar_cfg_acpi *cfg;
 	int ret;
 
-	lockdep_assert_wiphy(rtwdev->hw->wiphy);
-
-	cfg = kzalloc(sizeof(*cfg), GFP_KERNEL);
+	cfg = kzalloc_obj(*cfg);
 	if (!cfg)
 		return;
 
@@ -693,6 +693,7 @@ static bool rtw89_tas_rolling_average(struct rtw89_dev *rtwdev)
 
 static void rtw89_tas_init(struct rtw89_dev *rtwdev)
 {
+	bool skip_acpi_dsm = rtwdev->hci.type == RTW89_HCI_TYPE_USB;
 	const struct rtw89_chip_info *chip = rtwdev->chip;
 	struct rtw89_tas_info *tas = &rtwdev->tas;
 	const struct rtw89_acpi_policy_tas *ptr;
@@ -700,6 +701,9 @@ static void rtw89_tas_init(struct rtw89_dev *rtwdev)
 	int ret;
 
 	if (!chip->support_tas)
+		return;
+
+	if (skip_acpi_dsm)
 		return;
 
 	ret = rtw89_acpi_evaluate_dsm(rtwdev, RTW89_ACPI_DSM_FUNC_TAS_EN, &res);
@@ -843,6 +847,20 @@ void rtw89_tas_chanctx_cb(struct rtw89_dev *rtwdev,
 	}
 }
 EXPORT_SYMBOL(rtw89_tas_chanctx_cb);
+
+void rtw89_tas_fw_timer_enable(struct rtw89_dev *rtwdev, bool enable)
+{
+	const struct rtw89_chip_info *chip = rtwdev->chip;
+	struct rtw89_tas_info *tas = &rtwdev->tas;
+
+	if (!tas->enable)
+		return;
+
+	if (chip->chip_gen == RTW89_CHIP_AX)
+		return;
+
+	rtw89_fw_h2c_rf_tas_trigger(rtwdev, enable);
+}
 
 void rtw89_sar_init(struct rtw89_dev *rtwdev)
 {

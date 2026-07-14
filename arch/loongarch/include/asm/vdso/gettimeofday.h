@@ -7,10 +7,12 @@
 #ifndef __ASM_VDSO_GETTIMEOFDAY_H
 #define __ASM_VDSO_GETTIMEOFDAY_H
 
-#ifndef __ASSEMBLY__
+#ifndef __ASSEMBLER__
 
 #include <asm/unistd.h>
 #include <asm/vdso/vdso.h>
+
+#ifdef CONFIG_GENERIC_GETTIMEOFDAY
 
 #define VDSO_HAS_CLOCK_GETRES		1
 
@@ -25,7 +27,7 @@ static __always_inline long gettimeofday_fallback(
 
 	asm volatile(
 	"       syscall 0\n"
-	: "+r" (ret)
+	: "=r" (ret)
 	: "r" (nr), "r" (tv), "r" (tz)
 	: "$t0", "$t1", "$t2", "$t3", "$t4", "$t5", "$t6", "$t7",
 	  "$t8", "memory");
@@ -44,7 +46,7 @@ static __always_inline long clock_gettime_fallback(
 
 	asm volatile(
 	"       syscall 0\n"
-	: "+r" (ret)
+	: "=r" (ret)
 	: "r" (nr), "r" (clkid), "r" (ts)
 	: "$t0", "$t1", "$t2", "$t3", "$t4", "$t5", "$t6", "$t7",
 	  "$t8", "memory");
@@ -63,7 +65,7 @@ static __always_inline int clock_getres_fallback(
 
 	asm volatile(
 	"       syscall 0\n"
-	: "+r" (ret)
+	: "=r" (ret)
 	: "r" (nr), "r" (clkid), "r" (ts)
 	: "$t0", "$t1", "$t2", "$t3", "$t4", "$t5", "$t6", "$t7",
 	  "$t8", "memory");
@@ -83,12 +85,8 @@ static __always_inline u64 __arch_get_hw_counter(s32 clock_mode,
 	return count;
 }
 
-static inline bool loongarch_vdso_hres_capable(void)
-{
-	return true;
-}
-#define __arch_vdso_hres_capable loongarch_vdso_hres_capable
+#endif /* CONFIG_GENERIC_GETTIMEOFDAY */
 
-#endif /* !__ASSEMBLY__ */
+#endif /* !__ASSEMBLER__ */
 
 #endif /* __ASM_VDSO_GETTIMEOFDAY_H */

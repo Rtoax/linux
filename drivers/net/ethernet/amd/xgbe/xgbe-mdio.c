@@ -266,6 +266,10 @@ static void xgbe_an37_set(struct xgbe_prv_data *pdata, bool enable,
 		reg |= MDIO_VEND2_CTRL1_AN_RESTART;
 
 	XMDIO_WRITE(pdata, MDIO_MMD_VEND2, MDIO_CTRL1, reg);
+
+	reg = XMDIO_READ(pdata, MDIO_MMD_VEND2, MDIO_PCS_DIG_CTRL);
+	reg |= XGBE_VEND2_MAC_AUTO_SW;
+	XMDIO_WRITE(pdata, MDIO_MMD_VEND2, MDIO_PCS_DIG_CTRL, reg);
 }
 
 static void xgbe_an37_restart(struct xgbe_prv_data *pdata)
@@ -894,6 +898,11 @@ static void xgbe_an37_init(struct xgbe_prv_data *pdata)
 
 	netif_dbg(pdata, link, pdata->netdev, "CL37 AN (%s) initialized\n",
 		  (pdata->an_mode == XGBE_AN_MODE_CL37) ? "BaseX" : "SGMII");
+
+	reg = XMDIO_READ(pdata, MDIO_MMD_AN, MDIO_CTRL1);
+	reg &= ~MDIO_AN_CTRL1_ENABLE;
+	XMDIO_WRITE(pdata, MDIO_MMD_AN, MDIO_CTRL1, reg);
+
 }
 
 static void xgbe_an73_init(struct xgbe_prv_data *pdata)
@@ -1038,11 +1047,29 @@ static void xgbe_phy_adjust_link(struct xgbe_prv_data *pdata)
 		if (pdata->phy_link != pdata->phy.link) {
 			new_state = 1;
 			pdata->phy_link = pdata->phy.link;
+
+			/* Link is coming up - wake TX queues */
+			netif_tx_wake_all_queues(pdata->netdev);
 		}
 	} else if (pdata->phy_link) {
 		new_state = 1;
 		pdata->phy_link = 0;
 		pdata->phy_speed = SPEED_UNKNOWN;
+
+		/* Proactive TX queue management on link-down.
+		 *
+		 * Immediately stop TX queues to enable clean link-down
+		 * handling:
+		 * - Prevents queueing packets that can't be transmitted
+		 * - Allows orderly descriptor cleanup by NAPI poll
+		 * - Enables rapid failover in link aggregation configurations
+		 *
+		 * Note: We do NOT call netdev_tx_reset_queue() here because
+		 * NAPI poll may still be running and would trigger BQL
+		 * assertion. BQL state is cleaned up naturally during
+		 * descriptor reclamation.
+		 */
+		netif_tx_stop_all_queues(pdata->netdev);
 	}
 
 	if (new_state && netif_msg_link(pdata))
@@ -1295,6 +1322,10 @@ static void xgbe_phy_status(struct xgbe_prv_data *pdata)
 
 	pdata->phy.link = pdata->phy_if.phy_impl.link_status(pdata,
 							     &an_restart);
+	/* bail out if the link status register read fails */
+	if (pdata->phy.link < 0)
+		return;
+
 	if (an_restart) {
 		xgbe_phy_config_aneg(pdata);
 		goto adjust_link;
@@ -1542,6 +1573,7 @@ static int xgbe_phy_init(struct xgbe_prv_data *pdata)
 		pdata->phy.duplex = DUPLEX_FULL;
 	}
 
+	pdata->phy_link = 0;
 	pdata->phy.link = 0;
 
 	pdata->phy.pause_autoneg = pdata->pause_autoneg;

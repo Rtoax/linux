@@ -239,6 +239,8 @@ static void rtase_tx_clear(struct rtase_private *tp)
 		rtase_tx_clear_range(ring, ring->dirty_idx, RTASE_NUM_DESC);
 		ring->cur_idx = 0;
 		ring->dirty_idx = 0;
+
+		netdev_tx_reset_subqueue(tp->dev, i);
 	}
 }
 
@@ -326,6 +328,7 @@ static void rtase_tx_desc_init(struct rtase_private *tp, u16 idx)
 	ring->cur_idx = 0;
 	ring->dirty_idx = 0;
 	ring->index = idx;
+	ring->type = NETDEV_QUEUE_TYPE_TX;
 	ring->alloc_fail = 0;
 
 	for (i = 0; i < RTASE_NUM_DESC; i++) {
@@ -345,6 +348,9 @@ static void rtase_tx_desc_init(struct rtase_private *tp, u16 idx)
 		ring->ivec = &tp->int_vector[0];
 		list_add_tail(&ring->ring_entry, &tp->int_vector[0].ring_list);
 	}
+
+	netif_queue_set_napi(tp->dev, ring->index,
+			     ring->type, &ring->ivec->napi);
 }
 
 static void rtase_map_to_asic(union rtase_rx_desc *desc, dma_addr_t mapping,
@@ -590,6 +596,7 @@ static void rtase_rx_desc_init(struct rtase_private *tp, u16 idx)
 	ring->cur_idx = 0;
 	ring->dirty_idx = 0;
 	ring->index = idx;
+	ring->type = NETDEV_QUEUE_TYPE_RX;
 	ring->alloc_fail = 0;
 
 	for (i = 0; i < RTASE_NUM_DESC; i++)
@@ -597,6 +604,8 @@ static void rtase_rx_desc_init(struct rtase_private *tp, u16 idx)
 
 	ring->ring_handler = rx_handler;
 	ring->ivec = &tp->int_vector[idx];
+	netif_queue_set_napi(tp->dev, ring->index,
+			     ring->type, &ring->ivec->napi);
 	list_add_tail(&ring->ring_entry, &tp->int_vector[idx].ring_list);
 }
 
@@ -967,6 +976,9 @@ static void rtase_hw_config(struct net_device *dev)
 	rtase_hw_set_features(dev, dev->features);
 
 	/* enable flow control */
+	reg_data16 = rtase_r16(tp, RTASE_GPHY_STD_00);
+	reg_data16 &= ~(RTASE_TXFLOW_EN | RTASE_RXFLOW_EN);
+	rtase_w16(tp, RTASE_GPHY_STD_00, reg_data16);
 	reg_data16 = rtase_r16(tp, RTASE_CPLUS_CMD);
 	reg_data16 |= (RTASE_FORCE_TXFLOW_EN | RTASE_FORCE_RXFLOW_EN);
 	rtase_w16(tp, RTASE_CPLUS_CMD, reg_data16);
@@ -1161,8 +1173,12 @@ static void rtase_down(struct net_device *dev)
 		ivec = &tp->int_vector[i];
 		napi_disable(&ivec->napi);
 		list_for_each_entry_safe(ring, tmp, &ivec->ring_list,
-					 ring_entry)
+					 ring_entry) {
+			netif_queue_set_napi(tp->dev, ring->index,
+					     ring->type, NULL);
+
 			list_del(&ring->ring_entry);
+		}
 	}
 
 	netif_tx_disable(dev);
@@ -1518,8 +1534,12 @@ static void rtase_sw_reset(struct net_device *dev)
 	for (i = 0; i < tp->int_nums; i++) {
 		ivec = &tp->int_vector[i];
 		list_for_each_entry_safe(ring, tmp, &ivec->ring_list,
-					 ring_entry)
+					 ring_entry) {
+			netif_queue_set_napi(tp->dev, ring->index,
+					     ring->type, NULL);
+
 			list_del(&ring->ring_entry);
+		}
 	}
 
 	ret = rtase_init_ring(dev);
@@ -1548,8 +1568,9 @@ static void rtase_dump_tally_counter(const struct rtase_private *tp)
 	rtase_w32(tp, RTASE_DTCCR0, cmd);
 	rtase_w32(tp, RTASE_DTCCR0, cmd | RTASE_COUNTER_DUMP);
 
-	err = read_poll_timeout(rtase_r32, val, !(val & RTASE_COUNTER_DUMP),
-				10, 250, false, tp, RTASE_DTCCR0);
+	err = read_poll_timeout_atomic(rtase_r32, val,
+				       !(val & RTASE_COUNTER_DUMP),
+				       10, 250, false, tp, RTASE_DTCCR0);
 
 	if (err == -ETIMEDOUT)
 		netdev_err(tp->dev, "error occurred in dump tally counter\n");
@@ -1871,6 +1892,18 @@ static void rtase_init_netdev_ops(struct net_device *dev)
 	dev->ethtool_ops = &rtase_ethtool_ops;
 }
 
+static void rtase_init_napi(struct rtase_private *tp)
+{
+	u16 i;
+
+	for (i = 0; i < tp->int_nums; i++) {
+		netif_napi_add_config(tp->dev, &tp->int_vector[i].napi,
+				      tp->int_vector[i].poll, i);
+		netif_napi_set_irq(&tp->int_vector[i].napi,
+				   tp->int_vector[i].irq);
+	}
+}
+
 static void rtase_reset_interrupt(struct pci_dev *pdev,
 				  const struct rtase_private *tp)
 {
@@ -1956,9 +1989,6 @@ static void rtase_init_int_vector(struct rtase_private *tp)
 	memset(tp->int_vector[0].name, 0x0, sizeof(tp->int_vector[0].name));
 	INIT_LIST_HEAD(&tp->int_vector[0].ring_list);
 
-	netif_napi_add(tp->dev, &tp->int_vector[0].napi,
-		       tp->int_vector[0].poll);
-
 	/* interrupt vector 1 ~ 3 */
 	for (i = 1; i < tp->int_nums; i++) {
 		tp->int_vector[i].tp = tp;
@@ -1972,9 +2002,6 @@ static void rtase_init_int_vector(struct rtase_private *tp)
 		memset(tp->int_vector[i].name, 0x0,
 		       sizeof(tp->int_vector[0].name));
 		INIT_LIST_HEAD(&tp->int_vector[i].ring_list);
-
-		netif_napi_add(tp->dev, &tp->int_vector[i].napi,
-			       tp->int_vector[i].poll);
 	}
 }
 
@@ -2205,6 +2232,8 @@ static int rtase_init_one(struct pci_dev *pdev,
 		dev_err(&pdev->dev, "unable to alloc MSIX/MSI\n");
 		goto err_out_del_napi;
 	}
+
+	rtase_init_napi(tp);
 
 	rtase_init_netdev_ops(dev);
 

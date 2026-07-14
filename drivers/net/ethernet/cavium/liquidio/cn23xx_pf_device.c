@@ -1163,18 +1163,14 @@ int setup_cn23xx_octeon_pf_device(struct octeon_device *oct)
 	if (octeon_map_pci_barx(oct, 1, MAX_BAR1_IOREMAP_SIZE)) {
 		dev_err(&oct->pci_dev->dev, "%s CN23XX BAR1 map failed\n",
 			__func__);
-		octeon_unmap_pci_barx(oct, 0);
-		return 1;
+		goto err_unmap_bar0;
 	}
 
 	if (cn23xx_get_pf_num(oct) != 0)
-		return 1;
+		goto err_unmap_bar1;
 
-	if (cn23xx_sriov_config(oct)) {
-		octeon_unmap_pci_barx(oct, 0);
-		octeon_unmap_pci_barx(oct, 1);
-		return 1;
-	}
+	if (cn23xx_sriov_config(oct))
+		goto err_unmap_bar1;
 
 	octeon_write_csr64(oct, CN23XX_SLI_MAC_CREDIT_CNT, 0x3F802080802080ULL);
 
@@ -1205,47 +1201,14 @@ int setup_cn23xx_octeon_pf_device(struct octeon_device *oct)
 	oct->coproc_clock_rate = 1000000ULL * cn23xx_coprocessor_clock(oct);
 
 	return 0;
+
+err_unmap_bar1:
+	octeon_unmap_pci_barx(oct, 1);
+err_unmap_bar0:
+	octeon_unmap_pci_barx(oct, 0);
+	return 1;
 }
 EXPORT_SYMBOL_GPL(setup_cn23xx_octeon_pf_device);
-
-int validate_cn23xx_pf_config_info(struct octeon_device *oct,
-				   struct octeon_config *conf23xx)
-{
-	if (CFG_GET_IQ_MAX_Q(conf23xx) > CN23XX_MAX_INPUT_QUEUES) {
-		dev_err(&oct->pci_dev->dev, "%s: Num IQ (%d) exceeds Max (%d)\n",
-			__func__, CFG_GET_IQ_MAX_Q(conf23xx),
-			CN23XX_MAX_INPUT_QUEUES);
-		return 1;
-	}
-
-	if (CFG_GET_OQ_MAX_Q(conf23xx) > CN23XX_MAX_OUTPUT_QUEUES) {
-		dev_err(&oct->pci_dev->dev, "%s: Num OQ (%d) exceeds Max (%d)\n",
-			__func__, CFG_GET_OQ_MAX_Q(conf23xx),
-			CN23XX_MAX_OUTPUT_QUEUES);
-		return 1;
-	}
-
-	if (CFG_GET_IQ_INSTR_TYPE(conf23xx) != OCTEON_32BYTE_INSTR &&
-	    CFG_GET_IQ_INSTR_TYPE(conf23xx) != OCTEON_64BYTE_INSTR) {
-		dev_err(&oct->pci_dev->dev, "%s: Invalid instr type for IQ\n",
-			__func__);
-		return 1;
-	}
-
-	if (!CFG_GET_OQ_REFILL_THRESHOLD(conf23xx)) {
-		dev_err(&oct->pci_dev->dev, "%s: Invalid parameter for OQ\n",
-			__func__);
-		return 1;
-	}
-
-	if (!(CFG_GET_OQ_INTR_TIME(conf23xx))) {
-		dev_err(&oct->pci_dev->dev, "%s: Invalid parameter for OQ\n",
-			__func__);
-		return 1;
-	}
-
-	return 0;
-}
 
 int cn23xx_fw_loaded(struct octeon_device *oct)
 {

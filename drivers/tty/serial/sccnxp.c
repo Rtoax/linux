@@ -11,7 +11,6 @@
 #include <linux/delay.h>
 #include <linux/err.h>
 #include <linux/module.h>
-#include <linux/mod_devicetable.h>
 #include <linux/device.h>
 #include <linux/console.h>
 #include <linux/serial_core.h>
@@ -500,7 +499,7 @@ static void sccnxp_handle_events(struct sccnxp_port *s)
 
 static void sccnxp_timer(struct timer_list *t)
 {
-	struct sccnxp_port *s = from_timer(s, t, timer);
+	struct sccnxp_port *s = timer_container_of(s, t, timer);
 	unsigned long flags;
 
 	spin_lock_irqsave(&s->lock, flags);

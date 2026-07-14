@@ -624,6 +624,7 @@ static const struct of_device_id ipq8064_pinctrl_of_match[] = {
 	{ .compatible = "qcom,ipq8064-pinctrl", },
 	{ },
 };
+MODULE_DEVICE_TABLE(of, ipq8064_pinctrl_of_match);
 
 static struct platform_driver ipq8064_pinctrl_driver = {
 	.driver = {
@@ -631,7 +632,6 @@ static struct platform_driver ipq8064_pinctrl_driver = {
 		.of_match_table = ipq8064_pinctrl_of_match,
 	},
 	.probe = ipq8064_pinctrl_probe,
-	.remove = msm_pinctrl_remove,
 };
 
 static int __init ipq8064_pinctrl_init(void)
@@ -649,4 +649,3 @@ module_exit(ipq8064_pinctrl_exit);
 MODULE_AUTHOR("Andy Gross <agross@codeaurora.org>");
 MODULE_DESCRIPTION("Qualcomm IPQ8064 pinctrl driver");
 MODULE_LICENSE("GPL v2");
-MODULE_DEVICE_TABLE(of, ipq8064_pinctrl_of_match);

@@ -8,7 +8,6 @@
 #include <linux/device.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
-#include <linux/mod_devicetable.h>
 #include <linux/slab.h>
 #include <linux/sysfs.h>
 
@@ -297,8 +296,8 @@ static irqreturn_t ads124s_trigger_handler(int irq, void *p)
 		j++;
 	}
 
-	iio_push_to_buffers_with_timestamp(indio_dev, priv->buffer,
-			pf->timestamp);
+	iio_push_to_buffers_with_ts(indio_dev, priv->buffer, sizeof(priv->buffer),
+				    pf->timestamp);
 
 	iio_trigger_notify_done(indio_dev->trig);
 

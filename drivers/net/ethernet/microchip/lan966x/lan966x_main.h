@@ -295,8 +295,8 @@ struct lan966x {
 	const struct lan966x_stat_layout *stats_layout;
 	u32 num_stats;
 
-	/* workqueue for reading stats */
-	struct mutex stats_lock;
+	/* lock for reading stats */
+	spinlock_t stats_lock;
 	u64 *stats;
 	struct delayed_work stats_work;
 	struct workqueue_struct *stats_queue;
@@ -497,6 +497,7 @@ void lan966x_vlan_port_apply(struct lan966x_port *port);
 bool lan966x_vlan_cpu_member_cpu_vlan_mask(struct lan966x *lan966x, u16 vid);
 void lan966x_vlan_port_set_vlan_aware(struct lan966x_port *port,
 				      bool vlan_aware);
+void lan966x_vlan_port_rew_host(struct lan966x_port *port);
 int lan966x_vlan_port_set_vid(struct lan966x_port *port,
 			      u16 vid,
 			      bool pvid,

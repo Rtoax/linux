@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0 OR BSD-3-Clause */
 /*
- * Copyright (C) 2005-2014, 2018-2025 Intel Corporation
+ * Copyright (C) 2005-2014, 2018-2026 Intel Corporation
  * Copyright (C) 2013-2014 Intel Mobile Communications GmbH
  * Copyright (C) 2016 Intel Deutschland GmbH
  */
@@ -113,6 +113,7 @@
 #define CSR_IPC_STATE_RESET_SW_READY		1
 #define CSR_IPC_STATE_RESET_TOP_READY		2
 #define CSR_IPC_STATE_RESET_TOP_FOLLOWER	3
+#define CSR_IPC_STATE_TOP_RESET_REQ		BIT(6)
 
 #define CSR_IPC_SLEEP_CONTROL	(CSR_BASE + 0x114)
 #define CSR_IPC_SLEEP_CONTROL_SUSPEND	0x3
@@ -365,6 +366,7 @@ enum {
 #define CSR_HW_RF_ID_TYPE_GF4		(0x0010E000)
 #define CSR_HW_RF_ID_TYPE_FM		(0x00112000)
 #define CSR_HW_RF_ID_TYPE_WP		(0x00113000)
+#define CSR_HW_RF_ID_TYPE_PE		(0x00114000)
 
 /* HW_RF CHIP STEP  */
 #define CSR_HW_RF_STEP(_val) (((_val) >> 8) & 0xF)

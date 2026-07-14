@@ -248,8 +248,8 @@ static struct {
 };
 
 static const struct pci_device_id natsemi_pci_tbl[] = {
-	{ PCI_VENDOR_ID_NS, 0x0020, 0x12d9,     0x000c,     0, 0, 0 },
-	{ PCI_VENDOR_ID_NS, 0x0020, PCI_ANY_ID, PCI_ANY_ID, 0, 0, 1 },
+	{ PCI_VDEVICE_SUB(NS, 0x0020, 0x12d9, 0x000c), .driver_data = 0 },
+	{ PCI_VDEVICE(NS, 0x0020), .driver_data = 1 },
 	{ }	/* terminate list */
 };
 MODULE_DEVICE_TABLE(pci, natsemi_pci_tbl);
@@ -1786,7 +1786,7 @@ static void init_registers(struct net_device *dev)
  */
 static void netdev_timer(struct timer_list *t)
 {
-	struct netdev_private *np = from_timer(np, t, timer);
+	struct netdev_private *np = timer_container_of(np, t, timer);
 	struct net_device *dev = np->dev;
 	void __iomem * ioaddr = ns_ioaddr(dev);
 	int next_tick = NATSEMI_TIMER_FREQ;

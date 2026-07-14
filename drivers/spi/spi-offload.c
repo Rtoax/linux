@@ -117,7 +117,7 @@ struct spi_offload *devm_spi_offload_get(struct device *dev,
 	if (!spi->controller->get_offload)
 		return ERR_PTR(-ENODEV);
 
-	resource = kzalloc(sizeof(*resource), GFP_KERNEL);
+	resource = kzalloc_obj(*resource);
 	if (!resource)
 		return ERR_PTR(-ENOMEM);
 
@@ -297,7 +297,7 @@ int spi_offload_trigger_enable(struct spi_offload *offload,
 	if (trigger->ops->enable) {
 		ret = trigger->ops->enable(trigger, config);
 		if (ret) {
-			if (offload->ops->trigger_disable)
+			if (offload->ops && offload->ops->trigger_disable)
 				offload->ops->trigger_disable(offload);
 			return ret;
 		}

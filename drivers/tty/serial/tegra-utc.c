@@ -10,7 +10,6 @@
 #include <linux/iopoll.h>
 #include <linux/kfifo.h>
 #include <linux/module.h>
-#include <linux/mod_devicetable.h>
 #include <linux/property.h>
 #include <linux/platform_device.h>
 #include <linux/serial.h>
@@ -434,7 +433,7 @@ static void tegra_utc_console_write_atomic(struct console *cons, struct nbcon_wr
 
 		outbuf += burst_size;
 		len -= burst_size;
-	};
+	}
 
 	nbcon_exit_unsafe(wctxt);
 }

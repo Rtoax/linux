@@ -119,9 +119,10 @@ struct siw_page_chunk {
 
 struct siw_umem {
 	struct ib_umem *base_mem;
-	struct siw_page_chunk *page_chunk;
-	int num_pages;
+	unsigned int num_pages;
+	unsigned int num_chunks;
 	u64 fp_addr; /* First page base address */
+	struct siw_page_chunk page_chunk[] __counted_by(num_chunks);
 };
 
 struct siw_pble {
@@ -718,7 +719,7 @@ static inline void siw_crc_skb(struct siw_rx_stream *srx, unsigned int len)
 		  "MEM[0x%08x] %s: " fmt, mem->stag, __func__, ##__VA_ARGS__)
 
 #define siw_dbg_cep(cep, fmt, ...)                                             \
-	ibdev_dbg(&cep->sdev->base_dev, "CEP[0x%pK] %s: " fmt,                 \
+	ibdev_dbg(&cep->sdev->base_dev, "CEP[0x%p] %s: " fmt,                 \
 		  cep, __func__, ##__VA_ARGS__)
 
 void siw_cq_flush(struct siw_cq *cq);

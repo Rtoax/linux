@@ -177,9 +177,11 @@ void irq_migrate_all_off_this_cpu(void)
 		bool affinity_broken;
 
 		desc = irq_to_desc(irq);
-		scoped_guard(raw_spinlock, &desc->lock)
+		scoped_guard(raw_spinlock, &desc->lock) {
 			affinity_broken = migrate_one_irq(desc);
-
+			if (affinity_broken && desc->affinity_notify)
+				irq_affinity_schedule_notify_work(desc);
+		}
 		if (affinity_broken) {
 			pr_debug_ratelimited("IRQ %u: no longer affine to CPU%u\n",
 					    irq, smp_processor_id());
@@ -208,13 +210,6 @@ static void irq_restore_affinity_of_irq(struct irq_desc *desc, unsigned int cpu)
 
 	if (!irqd_affinity_is_managed(data) || !desc->action ||
 	    !irq_data_get_irq_chip(data) || !cpumask_test_cpu(cpu, affinity))
-		return;
-
-	/*
-	 * Don't restore suspended interrupts here when a system comes back
-	 * from S3. They are reenabled via resume_device_irqs().
-	 */
-	if (desc->istate & IRQS_SUSPENDED)
 		return;
 
 	if (irqd_is_managed_and_shutdown(data))

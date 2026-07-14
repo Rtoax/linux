@@ -34,7 +34,7 @@
 #include <linux/dmi.h>
 #include <linux/acpi.h>
 #include <linux/io.h>
-#include <asm/amd/fch.h>
+#include <linux/platform_data/x86/amd-fch.h>
 
 #include "i2c-piix4.h"
 
@@ -919,7 +919,7 @@ static int piix4_add_adapter(struct pci_dev *dev, unsigned short smba,
 	struct i2c_piix4_adapdata *adapdata;
 	int retval;
 
-	adap = kzalloc(sizeof(*adap), GFP_KERNEL);
+	adap = kzalloc_obj(*adap);
 	if (adap == NULL) {
 		release_region(smba, SMBIOSIZE);
 		return -ENOMEM;
@@ -930,7 +930,7 @@ static int piix4_add_adapter(struct pci_dev *dev, unsigned short smba,
 	adap->algo = sb800_main ? &piix4_smbus_algorithm_sb800
 				: &smbus_algorithm;
 
-	adapdata = kzalloc(sizeof(*adapdata), GFP_KERNEL);
+	adapdata = kzalloc_obj(*adapdata);
 	if (adapdata == NULL) {
 		kfree(adap);
 		release_region(smba, SMBIOSIZE);
@@ -971,7 +971,7 @@ static int piix4_add_adapter(struct pci_dev *dev, unsigned short smba,
 	 * This would allow the ee1004 to be probed incorrectly.
 	 */
 	if (port == 0)
-		i2c_register_spd(adap);
+		i2c_register_spd_write_enable(adap);
 
 	*padap = adap;
 	return 0;

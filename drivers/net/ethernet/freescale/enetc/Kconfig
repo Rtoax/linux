@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: GPL-2.0
 config FSL_ENETC_CORE
 	tristate
+	select NXP_NETC_LIB if NXP_NTMP
 	help
 	  This module supports common functionality between the PF and VF
 	  drivers for the NXP ENETC controller.
@@ -9,6 +10,7 @@ config FSL_ENETC_CORE
 
 config NXP_ENETC_PF_COMMON
 	tristate
+	select CRC_ITU_T
 	help
 	  This module supports common functionality between drivers of
 	  different versions of NXP ENETC PF controllers.
@@ -22,8 +24,12 @@ config NXP_NETC_LIB
 	  Switch, such as NETC Table Management Protocol (NTMP) 2.0, common tc
 	  flower and debugfs interfaces and so on.
 
+config NXP_NTMP
+	bool
+
 config FSL_ENETC
 	tristate "ENETC PF driver"
+	depends on PTP_1588_CLOCK_OPTIONAL
 	depends on PCI_MSI
 	select FSL_ENETC_CORE
 	select FSL_ENETC_IERB
@@ -41,11 +47,12 @@ config FSL_ENETC
 
 config NXP_ENETC4
 	tristate "ENETC4 PF driver"
+	depends on PTP_1588_CLOCK_OPTIONAL
 	depends on PCI_MSI
 	select FSL_ENETC_CORE
 	select FSL_ENETC_MDIO
 	select NXP_ENETC_PF_COMMON
-	select NXP_NETC_LIB
+	select NXP_NTMP
 	select PHYLINK
 	select DIMLIB
 	help
@@ -58,11 +65,13 @@ config NXP_ENETC4
 
 config FSL_ENETC_VF
 	tristate "ENETC VF driver"
+	depends on PTP_1588_CLOCK_OPTIONAL
 	depends on PCI_MSI
 	select FSL_ENETC_CORE
 	select FSL_ENETC_MDIO
 	select PHYLINK
 	select DIMLIB
+	select CRC_ITU_T
 	help
 	  This driver supports NXP ENETC gigabit ethernet controller PCIe
 	  virtual function (VF) devices enabled by the ENETC PF driver.

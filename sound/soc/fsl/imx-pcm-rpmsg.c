@@ -209,7 +209,7 @@ static snd_pcm_uframes_t imx_rpmsg_pcm_pointer(struct snd_soc_component *compone
 static void imx_rpmsg_timer_callback(struct timer_list *t)
 {
 	struct stream_timer  *stream_timer =
-			from_timer(stream_timer, t, timer);
+			timer_container_of(stream_timer, t, timer);
 	struct snd_pcm_substream *substream = stream_timer->substream;
 	struct rpmsg_info *info = stream_timer->info;
 	struct rpmsg_msg *msg;
@@ -624,7 +624,7 @@ static int imx_rpmsg_pcm_new(struct snd_soc_component *component,
 
 static const struct snd_soc_component_driver imx_rpmsg_soc_component = {
 	.name		= IMX_PCM_DRV_NAME,
-	.pcm_construct	= imx_rpmsg_pcm_new,
+	.pcm_new	= imx_rpmsg_pcm_new,
 	.open		= imx_rpmsg_pcm_open,
 	.close		= imx_rpmsg_pcm_close,
 	.hw_params	= imx_rpmsg_pcm_hw_params,
@@ -632,6 +632,7 @@ static const struct snd_soc_component_driver imx_rpmsg_soc_component = {
 	.pointer	= imx_rpmsg_pcm_pointer,
 	.ack		= imx_rpmsg_pcm_ack,
 	.prepare	= imx_rpmsg_pcm_prepare,
+	.debugfs_prefix	= "rpmsg",
 };
 
 static void imx_rpmsg_pcm_work(struct work_struct *work)
@@ -689,7 +690,6 @@ static void imx_rpmsg_pcm_work(struct work_struct *work)
 
 static int imx_rpmsg_pcm_probe(struct platform_device *pdev)
 {
-	struct snd_soc_component *component;
 	struct rpmsg_info *info;
 	int ret, i;
 
@@ -740,16 +740,6 @@ static int imx_rpmsg_pcm_probe(struct platform_device *pdev)
 					      NULL, 0);
 	if (ret)
 		goto fail;
-
-	component = snd_soc_lookup_component(&pdev->dev, NULL);
-	if (!component) {
-		ret = -EINVAL;
-		goto fail;
-	}
-
-#ifdef CONFIG_DEBUG_FS
-	component->debugfs_prefix = "rpmsg";
-#endif
 
 	return 0;
 

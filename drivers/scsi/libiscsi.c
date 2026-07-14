@@ -1747,7 +1747,8 @@ enum {
 	FAILURE_SESSION_NOT_READY,
 };
 
-int iscsi_queuecommand(struct Scsi_Host *host, struct scsi_cmnd *sc)
+enum scsi_qc_status iscsi_queuecommand(struct Scsi_Host *host,
+				       struct scsi_cmnd *sc)
 {
 	struct iscsi_cls_session *cls_session;
 	struct iscsi_host *ihost;
@@ -1898,7 +1899,8 @@ EXPORT_SYMBOL_GPL(iscsi_target_alloc);
 
 static void iscsi_tmf_timedout(struct timer_list *t)
 {
-	struct iscsi_session *session = from_timer(session, t, tmf_timer);
+	struct iscsi_session *session = timer_container_of(session, t,
+							   tmf_timer);
 
 	spin_lock(&session->frwd_lock);
 	if (session->tmf_state == TMF_QUEUED) {
@@ -2240,7 +2242,7 @@ EXPORT_SYMBOL_GPL(iscsi_eh_cmd_timed_out);
 
 static void iscsi_check_transport_timeouts(struct timer_list *t)
 {
-	struct iscsi_conn *conn = from_timer(conn, t, transport_timer);
+	struct iscsi_conn *conn = timer_container_of(conn, t, transport_timer);
 	struct iscsi_session *session = conn->session;
 	unsigned long recv_timeout, next_timeout = 0, last_recv;
 
@@ -3010,7 +3012,7 @@ static void iscsi_host_dec_session_cnt(struct Scsi_Host *shost)
  * This can be used by software iscsi_transports that allocate
  * a session per scsi host.
  *
- * Callers should set cmds_max to the largest total numer (mgmt + scsi) of
+ * Callers should set cmds_max to the largest total number (mgmt + scsi) of
  * tasks they support. The iscsi layer reserves ISCSI_MGMT_CMDS_MAX tasks
  * for nop handling and login/logout requests.
  */
@@ -3184,7 +3186,8 @@ iscsi_conn_setup(struct iscsi_cls_session *cls_session, int dd_size,
 		return NULL;
 	conn = cls_conn->dd_data;
 
-	conn->dd_data = cls_conn->dd_data + sizeof(*conn);
+	if (dd_size)
+		conn->dd_data = cls_conn->dd_data + sizeof(*conn);
 	conn->session = session;
 	conn->cls_conn = cls_conn;
 	conn->c_stage = ISCSI_CONN_INITIAL_STAGE;
@@ -3304,7 +3307,7 @@ int iscsi_conn_start(struct iscsi_cls_conn *cls_conn)
 
 	if (conn->ping_timeout && !conn->recv_timeout) {
 		iscsi_conn_printk(KERN_ERR, conn, "invalid recv timeout of "
-				  "zero. Using 5 seconds\n.");
+				  "zero. Using 5 seconds.\n");
 		conn->recv_timeout = 5;
 	}
 

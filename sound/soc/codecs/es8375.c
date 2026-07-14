@@ -319,6 +319,7 @@ static int es8375_hw_params(struct snd_pcm_substream *substream,
 	coeff = get_coeff(es8375->vddd, dmic_enable, es8375->mclk_freq, params_rate(params));
 	if (coeff < 0) {
 		dev_warn(component->dev, "Clock coefficients do not match");
+		return coeff;
 	}
 	regmap_write(es8375->regmap, ES8375_CLK_MGR4,
 			coeff_div[coeff].Reg0x04);
@@ -396,8 +397,6 @@ static int es8375_set_dai_fmt(struct snd_soc_dai *dai, unsigned int fmt)
 	case SND_SOC_DAIFMT_I2S:
 		codeciface &= 0xFC;
 		break;
-	case SND_SOC_DAIFMT_RIGHT_J:
-		return -EINVAL;
 	case SND_SOC_DAIFMT_LEFT_J:
 		codeciface &= 0xFC;
 		codeciface |= 0x01;
@@ -619,7 +618,7 @@ static bool es8375_writeable_register(struct device *dev, unsigned int reg)
 	}
 }
 
-static struct regmap_config es8375_regmap_config = {
+static const struct regmap_config es8375_regmap_config = {
 	.reg_bits = 8,
 	.val_bits = 8,
 	.max_register = ES8375_REG_MAX,
@@ -753,7 +752,7 @@ static void es8375_i2c_shutdown(struct i2c_client *i2c)
 }
 
 static const struct i2c_device_id es8375_id[] = {
-	{"es8375"},
+	{ .name = "es8375" },
 	{ }
 };
 MODULE_DEVICE_TABLE(i2c, es8375_id);

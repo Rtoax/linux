@@ -68,6 +68,8 @@
  *   nlmsg_for_each_msg()		loop over all messages
  *   nlmsg_validate()			validate netlink message incl. attrs
  *   nlmsg_for_each_attr()		loop over all attributes
+ *   nlmsg_for_each_attr_type()		loop over all attributes with the
+ *					given type
  *
  * Misc:
  *   nlmsg_report()			report back to application?
@@ -965,6 +967,18 @@ static inline u32 nlmsg_seq(const struct nlmsghdr *nlh)
 #define nlmsg_for_each_attr(pos, nlh, hdrlen, rem) \
 	nla_for_each_attr(pos, nlmsg_attrdata(nlh, hdrlen), \
 			  nlmsg_attrlen(nlh, hdrlen), rem)
+
+/**
+ * nlmsg_for_each_attr_type - iterate over a stream of attributes
+ * @pos: loop counter, set to the current attribute
+ * @type: required attribute type for @pos
+ * @nlh: netlink message header
+ * @hdrlen: length of the family specific header
+ * @rem: initialized to len, holds bytes currently remaining in stream
+ */
+#define nlmsg_for_each_attr_type(pos, type, nlh, hdrlen, rem) \
+	nlmsg_for_each_attr(pos, nlh, hdrlen, rem) \
+		if (nla_type(pos) == type)
 
 /**
  * nlmsg_put - Add a new netlink message to an skb
@@ -2246,8 +2260,30 @@ static inline struct nlattr *nla_nest_start(struct sk_buff *skb, int attrtype)
  */
 static inline int nla_nest_end(struct sk_buff *skb, struct nlattr *start)
 {
-	start->nla_len = skb_tail_pointer(skb) - (unsigned char *)start;
+	unsigned long diff = skb_tail_pointer(skb) - (unsigned char *)start;
+
+	DEBUG_NET_WARN_ON_ONCE(diff > U16_MAX);
+	start->nla_len = diff;
 	return skb->len;
+}
+
+/**
+ * nla_nest_end_safe - Validate and finalize nesting of attributes
+ * @skb: socket buffer the attributes are stored in
+ * @start: container attribute
+ *
+ * Corrects the container attribute header to include all appended
+ * attributes.
+ *
+ * Returns: the total data length of the skb, or -EMSGSIZE if the
+ * nested attribute length exceeds U16_MAX.
+ */
+static inline int nla_nest_end_safe(struct sk_buff *skb, struct nlattr *start)
+{
+	if (skb_tail_pointer(skb) - (unsigned char *)start > U16_MAX)
+		return -EMSGSIZE;
+
+	return nla_nest_end(skb, start);
 }
 
 /**

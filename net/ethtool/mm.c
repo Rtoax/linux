@@ -246,8 +246,9 @@ const struct ethnl_request_ops ethnl_mm_request_ops = {
 };
 
 /* Returns whether a given device supports the MAC merge layer
- * (has an eMAC and a pMAC). Must be called under rtnl_lock() and
- * ethnl_ops_begin().
+ * (has an eMAC and a pMAC). Must be called under whichever lock
+ * netdev_assert_locked_ops_compat() accepts (rtnl for traditional drivers,
+ * the netdev instance lock for ops-locked ones) and ethnl_ops_begin().
  */
 bool __ethtool_dev_mm_supported(struct net_device *dev)
 {
@@ -315,7 +316,7 @@ static void ethtool_mmsv_send_mpacket(struct ethtool_mmsv *mmsv,
  */
 static void ethtool_mmsv_verify_timer(struct timer_list *t)
 {
-	struct ethtool_mmsv *mmsv = from_timer(mmsv, t, verify_timer);
+	struct ethtool_mmsv *mmsv = timer_container_of(mmsv, t, verify_timer);
 	unsigned long flags;
 	bool rearm = false;
 

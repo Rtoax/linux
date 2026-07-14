@@ -37,16 +37,16 @@ char txgbe_driver_name[] = "txgbe";
  *   Class, Class Mask, private data (not used) }
  */
 static const struct pci_device_id txgbe_pci_tbl[] = {
-	{ PCI_VDEVICE(WANGXUN, TXGBE_DEV_ID_SP1000), 0},
-	{ PCI_VDEVICE(WANGXUN, TXGBE_DEV_ID_WX1820), 0},
-	{ PCI_VDEVICE(WANGXUN, TXGBE_DEV_ID_AML5010), 0},
-	{ PCI_VDEVICE(WANGXUN, TXGBE_DEV_ID_AML5110), 0},
-	{ PCI_VDEVICE(WANGXUN, TXGBE_DEV_ID_AML5025), 0},
-	{ PCI_VDEVICE(WANGXUN, TXGBE_DEV_ID_AML5125), 0},
-	{ PCI_VDEVICE(WANGXUN, TXGBE_DEV_ID_AML5040), 0},
-	{ PCI_VDEVICE(WANGXUN, TXGBE_DEV_ID_AML5140), 0},
+	{ PCI_VDEVICE(WANGXUN, TXGBE_DEV_ID_SP1000) },
+	{ PCI_VDEVICE(WANGXUN, TXGBE_DEV_ID_WX1820) },
+	{ PCI_VDEVICE(WANGXUN, TXGBE_DEV_ID_AML5010) },
+	{ PCI_VDEVICE(WANGXUN, TXGBE_DEV_ID_AML5110) },
+	{ PCI_VDEVICE(WANGXUN, TXGBE_DEV_ID_AML5025) },
+	{ PCI_VDEVICE(WANGXUN, TXGBE_DEV_ID_AML5125) },
+	{ PCI_VDEVICE(WANGXUN, TXGBE_DEV_ID_AML5040) },
+	{ PCI_VDEVICE(WANGXUN, TXGBE_DEV_ID_AML5140) },
 	/* required last entry */
-	{ .device = 0 }
+	{ }
 };
 
 #define DEFAULT_DEBUG_LEVEL_SHIFT 3
@@ -89,35 +89,27 @@ static int txgbe_enumerate_functions(struct wx *wx)
 	return physfns;
 }
 
-static void txgbe_sfp_detection_subtask(struct wx *wx)
+static void txgbe_module_detection_subtask(struct wx *wx)
 {
 	int err;
 
-	if (!test_bit(WX_FLAG_NEED_SFP_RESET, wx->flags))
+	if (!test_and_clear_bit(WX_FLAG_NEED_MODULE_RESET, wx->flags))
 		return;
 
-	/* wait for SFP module ready */
+	/* wait for SFF module ready */
 	msleep(200);
 
-	err = txgbe_identify_sfp(wx);
-	if (err)
-		return;
-
-	clear_bit(WX_FLAG_NEED_SFP_RESET, wx->flags);
+	err = txgbe_identify_module(wx);
+	if (err == -ENODEV)
+		set_bit(WX_FLAG_NEED_MODULE_RESET, wx->flags);
 }
 
 static void txgbe_link_config_subtask(struct wx *wx)
 {
-	int err;
-
-	if (!test_bit(WX_FLAG_NEED_LINK_CONFIG, wx->flags))
+	if (!test_and_clear_bit(WX_FLAG_NEED_LINK_CONFIG, wx->flags))
 		return;
 
-	err = txgbe_set_phy_link(wx);
-	if (err)
-		return;
-
-	clear_bit(WX_FLAG_NEED_LINK_CONFIG, wx->flags);
+	txgbe_set_phy_link(wx);
 }
 
 /**
@@ -128,8 +120,9 @@ static void txgbe_service_task(struct work_struct *work)
 {
 	struct wx *wx = container_of(work, struct wx, service_task);
 
-	txgbe_sfp_detection_subtask(wx);
+	txgbe_module_detection_subtask(wx);
 	txgbe_link_config_subtask(wx);
+	wx_update_stats(wx);
 
 	wx_service_event_complete(wx);
 }
@@ -144,23 +137,19 @@ static void txgbe_init_service(struct wx *wx)
 static void txgbe_up_complete(struct wx *wx)
 {
 	struct net_device *netdev = wx->netdev;
-	u32 reg;
 
 	wx_control_hw(wx, true);
 	wx_configure_vectors(wx);
 
 	/* make sure to complete pre-operations */
 	smp_mb__before_atomic();
+	clear_bit(WX_STATE_DOWN, wx->state);
 	wx_napi_enable_all(wx);
 
 	switch (wx->mac.type) {
 	case wx_mac_aml40:
-		reg = rd32(wx, TXGBE_AML_MAC_TX_CFG);
-		reg &= ~TXGBE_AML_MAC_TX_CFG_SPEED_MASK;
-		reg |= TXGBE_AML_MAC_TX_CFG_SPEED_40G;
-		wr32(wx, WX_MAC_TX_CFG, reg);
-		txgbe_enable_sec_tx_path(wx);
-		netif_carrier_on(wx->netdev);
+		txgbe_setup_link(wx);
+		phylink_start(wx->phylink);
 		break;
 	case wx_mac_aml:
 		/* Enable TX laser */
@@ -217,6 +206,9 @@ static void txgbe_disable_device(struct wx *wx)
 	struct net_device *netdev = wx->netdev;
 	u32 i;
 
+	if (test_and_set_bit(WX_STATE_DOWN, wx->state))
+		return;
+
 	wx_disable_pcie_master(wx);
 	/* disable receives */
 	wx_disable_rx(wx);
@@ -233,6 +225,7 @@ static void txgbe_disable_device(struct wx *wx)
 	wx_napi_disable_all(wx);
 
 	timer_delete_sync(&wx->service_timer);
+	cancel_work_sync(&wx->service_task);
 
 	if (wx->bus.func < 2)
 		wr32m(wx, TXGBE_MIS_PRB_CTL, TXGBE_MIS_PRB_CTL_LAN_UP(wx->bus.func), 0);
@@ -265,8 +258,6 @@ static void txgbe_disable_device(struct wx *wx)
 
 	/* Disable the Tx DMA engine */
 	wr32m(wx, WX_TDM_CTL, WX_TDM_CTL_TE, 0);
-
-	wx_update_stats(wx);
 }
 
 void txgbe_down(struct wx *wx)
@@ -276,7 +267,7 @@ void txgbe_down(struct wx *wx)
 
 	switch (wx->mac.type) {
 	case wx_mac_aml40:
-		netif_carrier_off(wx->netdev);
+		phylink_stop(wx->phylink);
 		break;
 	case wx_mac_aml:
 		phylink_stop(wx->phylink);
@@ -398,9 +389,11 @@ static int txgbe_sw_init(struct wx *wx)
 	wx->configure_fdir = txgbe_configure_fdir;
 
 	set_bit(WX_FLAG_RSC_CAPABLE, wx->flags);
+	set_bit(WX_FLAG_RSC_ENABLED, wx->flags);
 	set_bit(WX_FLAG_MULTI_64_FUNC, wx->flags);
 
 	/* enable itr by default in dynamic mode */
+	wx->adaptive_itr = true;
 	wx->rx_itr_setting = 1;
 	wx->tx_itr_setting = 1;
 
@@ -422,6 +415,8 @@ static int txgbe_sw_init(struct wx *wx)
 		break;
 	case wx_mac_aml:
 	case wx_mac_aml40:
+		set_bit(WX_FLAG_RX_MERGE_ENABLED, wx->flags);
+		set_bit(WX_FLAG_TXHEAD_WB_ENABLED, wx->flags);
 		set_bit(WX_FLAG_SWFW_RING, wx->flags);
 		wx->swfw_index = 0;
 		break;
@@ -458,9 +453,13 @@ static int txgbe_open(struct net_device *netdev)
 
 	wx_configure(wx);
 
-	err = txgbe_request_queue_irqs(wx);
+	err = txgbe_setup_misc_irq(wx->priv);
 	if (err)
 		goto err_free_resources;
+
+	err = txgbe_request_queue_irqs(wx);
+	if (err)
+		goto err_free_misc_irq;
 
 	/* Notify the stack of the actual queue counts. */
 	err = netif_set_real_num_tx_queues(netdev, wx->num_tx_queues);
@@ -479,6 +478,9 @@ static int txgbe_open(struct net_device *netdev)
 
 err_free_irq:
 	wx_free_irq(wx);
+err_free_misc_irq:
+	txgbe_free_misc_irq(wx->priv);
+	wx_reset_interrupt_capability(wx);
 err_free_resources:
 	wx_free_resources(wx);
 err_reset:
@@ -519,6 +521,7 @@ static int txgbe_close(struct net_device *netdev)
 	wx_ptp_stop(wx);
 	txgbe_down(wx);
 	wx_free_irq(wx);
+	txgbe_free_misc_irq(wx->priv);
 	wx_free_resources(wx);
 	txgbe_fdir_filter_exit(wx);
 	wx_control_hw(wx, false);
@@ -564,7 +567,6 @@ static void txgbe_shutdown(struct pci_dev *pdev)
 int txgbe_setup_tc(struct net_device *dev, u8 tc)
 {
 	struct wx *wx = netdev_priv(dev);
-	struct txgbe *txgbe = wx->priv;
 
 	/* Hardware has to reinitialize queues and interrupts to
 	 * match packet buffer alignment. Unfortunately, the
@@ -575,7 +577,6 @@ int txgbe_setup_tc(struct net_device *dev, u8 tc)
 	else
 		txgbe_reset(wx);
 
-	txgbe_free_misc_irq(txgbe);
 	wx_clear_interrupt_scheme(wx);
 
 	if (tc)
@@ -584,7 +585,6 @@ int txgbe_setup_tc(struct net_device *dev, u8 tc)
 		netdev_reset_tc(dev);
 
 	wx_init_interrupt_scheme(wx);
-	txgbe_setup_misc_irq(txgbe);
 
 	if (netif_running(dev))
 		txgbe_open(dev);
@@ -594,20 +594,16 @@ int txgbe_setup_tc(struct net_device *dev, u8 tc)
 
 static void txgbe_reinit_locked(struct wx *wx)
 {
-	int err = 0;
-
 	netif_trans_update(wx->netdev);
 
-	err = wx_set_state_reset(wx);
-	if (err) {
-		wx_err(wx, "wait device reset timeout\n");
-		return;
-	}
+	mutex_lock(&wx->reset_lock);
+	set_bit(WX_STATE_RESETTING, wx->state);
 
 	txgbe_down(wx);
 	txgbe_up(wx);
 
 	clear_bit(WX_STATE_RESETTING, wx->state);
+	mutex_unlock(&wx->reset_lock);
 }
 
 void txgbe_do_reset(struct net_device *netdev)
@@ -795,10 +791,11 @@ static int txgbe_probe(struct pci_dev *pdev,
 	netdev->features |= NETIF_F_HIGHDMA;
 	netdev->hw_features |= NETIF_F_GRO;
 	netdev->features |= NETIF_F_GRO;
+	netdev->hw_features |= NETIF_F_LRO;
+	netdev->features |= NETIF_F_LRO;
 	netdev->features |= NETIF_F_RX_UDP_TUNNEL_PORT;
 
 	netdev->priv_flags |= IFF_UNICAST_FLT;
-	netdev->priv_flags |= IFF_SUPP_NOFCS;
 	netdev->priv_flags |= IFF_LIVE_ADDR_CHANGE;
 
 	netdev->min_mtu = ETH_MIN_MTU;
@@ -861,7 +858,8 @@ static int txgbe_probe(struct pci_dev *pdev,
 			 "0x%08x", etrack_id);
 	}
 
-	if (etrack_id < 0x20010)
+	if (wx->mac.type == wx_mac_sp &&
+	    ((etrack_id & 0xfffff) < 0x20010))
 		dev_warn(&pdev->dev, "Please upgrade the firmware to 0x20010 or above.\n");
 
 	err = txgbe_test_hostif(wx);
@@ -882,13 +880,9 @@ static int txgbe_probe(struct pci_dev *pdev,
 
 	txgbe_init_fdir(txgbe);
 
-	err = txgbe_setup_misc_irq(txgbe);
-	if (err)
-		goto err_release_hw;
-
 	err = txgbe_init_phy(txgbe);
 	if (err)
-		goto err_free_misc_irq;
+		goto err_release_hw;
 
 	err = register_netdev(netdev);
 	if (err)
@@ -916,8 +910,6 @@ static int txgbe_probe(struct pci_dev *pdev,
 
 err_remove_phy:
 	txgbe_remove_phy(txgbe);
-err_free_misc_irq:
-	txgbe_free_misc_irq(txgbe);
 err_release_hw:
 	wx_clear_interrupt_scheme(wx);
 	wx_control_hw(wx, false);
@@ -950,14 +942,14 @@ static void txgbe_remove(struct pci_dev *pdev)
 	struct txgbe *txgbe = wx->priv;
 	struct net_device *netdev;
 
-	cancel_work_sync(&wx->service_task);
-
 	netdev = wx->netdev;
 	wx_disable_sriov(wx);
 	unregister_netdev(netdev);
 
+	timer_shutdown_sync(&wx->service_timer);
+	cancel_work_sync(&wx->service_task);
+
 	txgbe_remove_phy(txgbe);
-	txgbe_free_misc_irq(txgbe);
 	wx_free_isb_resources(wx);
 
 	pci_release_selected_regions(pdev,

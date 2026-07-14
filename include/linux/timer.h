@@ -129,7 +129,7 @@ extern void timer_destroy_on_stack(struct timer_list *timer);
 static inline void timer_destroy_on_stack(struct timer_list *timer) { }
 #endif
 
-#define from_timer(var, callback_timer, timer_fieldname) \
+#define timer_container_of(var, callback_timer, timer_fieldname)	\
 	container_of(callback_timer, typeof(*var), timer_fieldname)
 
 /**
@@ -186,6 +186,15 @@ int timers_dead_cpu(unsigned int cpu);
 #else
 #define timers_prepare_cpu	NULL
 #define timers_dead_cpu		NULL
+#endif
+
+#if defined(CONFIG_SMP) && defined(CONFIG_NO_HZ_COMMON)
+extern int tmigr_isolated_exclude_cpumask(struct cpumask *exclude_cpumask);
+#else
+static inline int tmigr_isolated_exclude_cpumask(struct cpumask *exclude_cpumask)
+{
+	return 0;
+}
 #endif
 
 #endif

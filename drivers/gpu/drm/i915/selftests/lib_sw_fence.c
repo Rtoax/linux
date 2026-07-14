@@ -55,7 +55,7 @@ void onstack_fence_fini(struct i915_sw_fence *fence)
 
 static void timed_fence_wake(struct timer_list *t)
 {
-	struct timed_fence *tf = from_timer(tf, t, timer);
+	struct timed_fence *tf = timer_container_of(tf, t, timer);
 
 	i915_sw_fence_commit(&tf->fence);
 }
@@ -109,7 +109,7 @@ struct i915_sw_fence *heap_fence_create(gfp_t gfp)
 {
 	struct heap_fence *h;
 
-	h = kmalloc(sizeof(*h), gfp);
+	h = kmalloc_obj(*h, gfp);
 	if (!h)
 		return NULL;
 

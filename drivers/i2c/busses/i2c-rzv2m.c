@@ -17,7 +17,6 @@
 #include <linux/kernel.h>
 #include <linux/math64.h>
 #include <linux/module.h>
-#include <linux/mod_devicetable.h>
 #include <linux/platform_device.h>
 #include <linux/pm_runtime.h>
 #include <linux/reset.h>
@@ -372,7 +371,6 @@ static int rzv2m_i2c_xfer(struct i2c_adapter *adap,
 	ret = num;
 
 out:
-	pm_runtime_mark_last_busy(dev);
 	pm_runtime_put_autosuspend(dev);
 
 	return ret;
@@ -402,7 +400,7 @@ static const struct i2c_adapter_quirks rzv2m_i2c_quirks = {
 	.flags = I2C_AQ_NO_ZERO_LEN,
 };
 
-static struct i2c_algorithm rzv2m_i2c_algo = {
+static const struct i2c_algorithm rzv2m_i2c_algo = {
 	.xfer = rzv2m_i2c_xfer,
 	.functionality = rzv2m_i2c_func,
 };

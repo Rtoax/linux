@@ -318,7 +318,7 @@ static int chip_cmd(struct CHIPSTATE *chip, char *name, audiocmd *cmd)
 
 static void chip_thread_wake(struct timer_list *t)
 {
-	struct CHIPSTATE *chip = from_timer(chip, t, wt);
+	struct CHIPSTATE *chip = timer_container_of(chip, t, wt);
 	wake_up_process(chip->thread);
 }
 
@@ -2086,7 +2086,7 @@ static void tvaudio_remove(struct i2c_client *client)
    detect which device is present. So rather than listing all supported
    devices here, we pretend to support a single, fake device type. */
 static const struct i2c_device_id tvaudio_id[] = {
-	{ "tvaudio" },
+	{ .name = "tvaudio" },
 	{ }
 };
 MODULE_DEVICE_TABLE(i2c, tvaudio_id);

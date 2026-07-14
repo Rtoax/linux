@@ -13,6 +13,7 @@ struct owner_tracing_data {
 struct tstamp_data {
 	u64 timestamp;
 	u64 lock;
+	u64 cgroup_id;
 	u32 flags;
 	s32 stack_id;
 };
@@ -67,6 +68,7 @@ enum lock_aggr_mode {
 enum lock_class_sym {
 	LOCK_CLASS_NONE,
 	LOCK_CLASS_RQLOCK,
+	LOCK_CLASS_ZONE_LOCK,
 };
 
 struct slab_cache_data {

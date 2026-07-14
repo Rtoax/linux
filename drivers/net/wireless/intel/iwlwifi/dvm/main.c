@@ -205,7 +205,7 @@ int iwlagn_send_beacon_cmd(struct iwl_priv *priv)
 
 	/* Allocate beacon command */
 	if (!priv->beacon_cmd)
-		priv->beacon_cmd = kzalloc(sizeof(*tx_beacon_cmd), GFP_KERNEL);
+		priv->beacon_cmd = kzalloc_obj(*tx_beacon_cmd);
 	tx_beacon_cmd = priv->beacon_cmd;
 	if (!tx_beacon_cmd)
 		return -ENOMEM;
@@ -381,7 +381,8 @@ int iwl_send_statistics_request(struct iwl_priv *priv, u8 flags, bool clear)
  */
 static void iwl_bg_statistics_periodic(struct timer_list *t)
 {
-	struct iwl_priv *priv = from_timer(priv, t, statistics_periodic);
+	struct iwl_priv *priv = timer_container_of(priv, t,
+						   statistics_periodic);
 
 	if (test_bit(STATUS_EXIT_PENDING, &priv->status))
 		return;
@@ -537,7 +538,7 @@ static void iwl_continuous_event_trace(struct iwl_priv *priv)
  */
 static void iwl_bg_ucode_trace(struct timer_list *t)
 {
-	struct iwl_priv *priv = from_timer(priv, t, ucode_trace);
+	struct iwl_priv *priv = timer_container_of(priv, t, ucode_trace);
 
 	if (test_bit(STATUS_EXIT_PENDING, &priv->status))
 		return;
@@ -1048,9 +1049,11 @@ static void iwl_bg_restart(struct work_struct *data)
  *
  *****************************************************************************/
 
-static void iwl_setup_deferred_work(struct iwl_priv *priv)
+static int iwl_setup_deferred_work(struct iwl_priv *priv)
 {
 	priv->workqueue = alloc_ordered_workqueue(DRV_NAME, 0);
+	if (!priv->workqueue)
+		return -ENOMEM;
 
 	INIT_WORK(&priv->restart, iwl_bg_restart);
 	INIT_WORK(&priv->beacon_update, iwl_bg_beacon_update);
@@ -1067,6 +1070,8 @@ static void iwl_setup_deferred_work(struct iwl_priv *priv)
 	timer_setup(&priv->statistics_periodic, iwl_bg_statistics_periodic, 0);
 
 	timer_setup(&priv->ucode_trace, iwl_bg_ucode_trace, 0);
+
+	return 0;
 }
 
 void iwl_cancel_deferred_work(struct iwl_priv *priv)
@@ -1315,6 +1320,7 @@ static struct iwl_op_mode *iwl_op_mode_dvm_start(struct iwl_trans *trans,
 		     sizeof(trans->conf.no_reclaim_cmds));
 	memcpy(trans->conf.no_reclaim_cmds, no_reclaim_cmds,
 	       sizeof(no_reclaim_cmds));
+	trans->conf.n_no_reclaim_cmds = ARRAY_SIZE(no_reclaim_cmds);
 
 	switch (iwlwifi_mod_params.amsdu_size) {
 	case IWL_AMSDU_DEF:
@@ -1461,7 +1467,10 @@ static struct iwl_op_mode *iwl_op_mode_dvm_start(struct iwl_trans *trans,
 	/********************
 	 * 6. Setup services
 	 ********************/
-	iwl_setup_deferred_work(priv);
+	err = iwl_setup_deferred_work(priv);
+	if (err)
+		goto out_uninit_drv;
+
 	iwl_setup_rx_handlers(priv);
 
 	iwl_power_initialize(priv);
@@ -1500,6 +1509,7 @@ out_destroy_workqueue:
 	iwl_cancel_deferred_work(priv);
 	destroy_workqueue(priv->workqueue);
 	priv->workqueue = NULL;
+out_uninit_drv:
 	iwl_uninit_drv(priv);
 out_free_eeprom_blob:
 	kfree(priv->eeprom_blob);

@@ -1128,7 +1128,6 @@ out:
 		cdns_i2c_set_mode(CDNS_I2C_MODE_SLAVE, id);
 #endif
 
-	pm_runtime_mark_last_busy(id->dev);
 	pm_runtime_put_autosuspend(id->dev);
 	return ret;
 }
@@ -1231,12 +1230,12 @@ static int cdns_unreg_slave(struct i2c_client *slave)
 #endif
 
 static const struct i2c_algorithm cdns_i2c_algo = {
-	.master_xfer	= cdns_i2c_master_xfer,
-	.master_xfer_atomic = cdns_i2c_master_xfer_atomic,
-	.functionality	= cdns_i2c_func,
+	.xfer = cdns_i2c_master_xfer,
+	.xfer_atomic = cdns_i2c_master_xfer_atomic,
+	.functionality = cdns_i2c_func,
 #if IS_ENABLED(CONFIG_I2C_SLAVE)
-	.reg_slave	= cdns_reg_slave,
-	.unreg_slave	= cdns_unreg_slave,
+	.reg_slave = cdns_reg_slave,
+	.unreg_slave = cdns_unreg_slave,
 #endif
 };
 
@@ -1636,6 +1635,25 @@ static void cdns_i2c_remove(struct platform_device *pdev)
 	reset_control_assert(id->reset);
 }
 
+/**
+ * cdns_i2c_shutdown - Prepare I2C controller for system shutdown
+ * @pdev:	Handle to the platform device structure
+ *
+ * Mark the adapter as suspended and reset the controller to ensure a clean
+ * handoff during system reboot or kexec.
+ */
+static void cdns_i2c_shutdown(struct platform_device *pdev)
+{
+	struct cdns_i2c *id = platform_get_drvdata(pdev);
+
+	/* Mark the adapter as suspended to prevent further I2C transfers */
+	i2c_mark_adapter_suspended(&id->adap);
+
+	/* Reset the controller state if active - clocks are disabled when suspended */
+	if (!pm_runtime_status_suspended(&pdev->dev))
+		cdns_i2c_master_reset(&id->adap);
+}
+
 static struct platform_driver cdns_i2c_drv = {
 	.driver = {
 		.name  = DRIVER_NAME,
@@ -1644,6 +1662,7 @@ static struct platform_driver cdns_i2c_drv = {
 	},
 	.probe  = cdns_i2c_probe,
 	.remove = cdns_i2c_remove,
+	.shutdown = cdns_i2c_shutdown,
 };
 
 module_platform_driver(cdns_i2c_drv);

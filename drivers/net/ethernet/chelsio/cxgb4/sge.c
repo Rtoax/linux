@@ -163,7 +163,7 @@ static inline unsigned int fl_mtu_bufsize(struct adapter *adapter,
  * for DMA, but this is of course never sent to the hardware and is only used
  * to prevent double unmappings.  All of the above requires that the Free List
  * Buffers which we allocate have the bottom 5 bits free (0) -- i.e. are
- * 32-byte or or a power of 2 greater in alignment.  Since the SGE's minimal
+ * 32-byte or a power of 2 greater in alignment.  Since the SGE's minimal
  * Free List Buffer alignment is 32 bytes, this works out for us ...
  */
 enum {
@@ -4234,7 +4234,7 @@ static void sge_rx_timer_cb(struct timer_list *t)
 {
 	unsigned long m;
 	unsigned int i;
-	struct adapter *adap = from_timer(adap, t, sge.rx_timer);
+	struct adapter *adap = timer_container_of(adap, t, sge.rx_timer);
 	struct sge *s = &adap->sge;
 
 	for (i = 0; i < BITS_TO_LONGS(s->egr_sz); i++)
@@ -4269,7 +4269,7 @@ done:
 
 static void sge_tx_timer_cb(struct timer_list *t)
 {
-	struct adapter *adap = from_timer(adap, t, sge.tx_timer);
+	struct adapter *adap = timer_container_of(adap, t, sge.tx_timer);
 	struct sge *s = &adap->sge;
 	unsigned long m, period;
 	unsigned int i, budget;

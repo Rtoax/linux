@@ -632,8 +632,8 @@ static irqreturn_t max11410_trigger_handler(int irq, void *p)
 		goto out;
 	}
 
-	iio_push_to_buffers_with_timestamp(indio_dev, &st->scan,
-					   iio_get_time_ns(indio_dev));
+	iio_push_to_buffers_with_ts(indio_dev, &st->scan, sizeof(st->scan),
+				    iio_get_time_ns(indio_dev));
 
 out:
 	iio_trigger_notify_done(indio_dev->trig);
@@ -804,7 +804,7 @@ static int max11410_parse_channels(struct max11410_state *st,
 		chan_idx++;
 	}
 
-	channels[chan_idx] = (struct iio_chan_spec)IIO_CHAN_SOFT_TIMESTAMP(chan_idx);
+	channels[chan_idx] = IIO_CHAN_SOFT_TIMESTAMP(chan_idx);
 
 	indio_dev->num_channels = chan_idx + 1;
 	indio_dev->channels = channels;
@@ -912,8 +912,8 @@ static int max11410_self_calibrate(struct max11410_state *st)
 
 static int max11410_probe(struct spi_device *spi)
 {
-	const char *vrefp_regs[] = { "vref0p", "vref1p", "vref2p" };
-	const char *vrefn_regs[] = { "vref0n", "vref1n", "vref2n" };
+	static const char * const vrefp_regs[] = { "vref0p", "vref1p", "vref2p" };
+	static const char * const vrefn_regs[] = { "vref0n", "vref1n", "vref2n" };
 	struct device *dev = &spi->dev;
 	struct max11410_state *st;
 	struct iio_dev *indio_dev;

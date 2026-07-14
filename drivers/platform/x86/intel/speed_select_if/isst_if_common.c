@@ -89,7 +89,7 @@ static int isst_store_new_cmd(int cmd, u32 cpu, int mbox_cmd_type, u32 param,
 {
 	struct isst_cmd *sst_cmd;
 
-	sst_cmd = kmalloc(sizeof(*sst_cmd), GFP_KERNEL);
+	sst_cmd = kmalloc_obj(*sst_cmd);
 	if (!sst_cmd)
 		return -ENOMEM;
 
@@ -198,25 +198,6 @@ void isst_resume_common(void)
 	}
 }
 EXPORT_SYMBOL_GPL(isst_resume_common);
-
-static void isst_restore_msr_local(int cpu)
-{
-	struct isst_cmd *sst_cmd;
-	int i;
-
-	mutex_lock(&isst_hash_lock);
-	for (i = 0; i < ARRAY_SIZE(punit_msr_white_list); ++i) {
-		if (!punit_msr_white_list[i])
-			break;
-
-		hash_for_each_possible(isst_hash, sst_cmd, hnode,
-				       punit_msr_white_list[i]) {
-			if (!sst_cmd->mbox_cmd_type && sst_cmd->cpu == cpu)
-				wrmsrq_safe(sst_cmd->cmd, sst_cmd->data);
-		}
-	}
-	mutex_unlock(&isst_hash_lock);
-}
 
 /**
  * isst_if_mbox_cmd_invalid() - Check invalid mailbox commands
@@ -435,8 +416,6 @@ static int isst_if_cpu_online(unsigned int cpu)
 set_punit_id:
 	isst_cpu_info[cpu].punit_cpu_id = data;
 
-	isst_restore_msr_local(cpu);
-
 	return 0;
 }
 
@@ -446,15 +425,11 @@ static int isst_if_cpu_info_init(void)
 {
 	int ret;
 
-	isst_cpu_info = kcalloc(num_possible_cpus(),
-				sizeof(*isst_cpu_info),
-				GFP_KERNEL);
+	isst_cpu_info = kzalloc_objs(*isst_cpu_info, num_possible_cpus());
 	if (!isst_cpu_info)
 		return -ENOMEM;
 
-	isst_pkg_info = kcalloc(topology_max_packages(),
-				sizeof(*isst_pkg_info),
-				GFP_KERNEL);
+	isst_pkg_info = kzalloc_objs(*isst_pkg_info, topology_max_packages());
 	if (!isst_pkg_info) {
 		kfree(isst_cpu_info);
 		return -ENOMEM;
@@ -811,7 +786,7 @@ static const struct x86_cpu_id isst_cpu_ids[] = {
 	X86_MATCH_VFM(INTEL_GRANITERAPIDS_X,	SST_HPM_SUPPORTED),
 	X86_MATCH_VFM(INTEL_ICELAKE_D,		0),
 	X86_MATCH_VFM(INTEL_ICELAKE_X,		0),
-	X86_MATCH_VFM(INTEL_PANTHERCOVE_X,	SST_HPM_SUPPORTED),
+	X86_MATCH_VFM(INTEL_DIAMONDRAPIDS_X,	SST_HPM_SUPPORTED),
 	X86_MATCH_VFM(INTEL_SAPPHIRERAPIDS_X,	0),
 	X86_MATCH_VFM(INTEL_SKYLAKE_X,		SST_MBOX_SUPPORTED),
 	{}

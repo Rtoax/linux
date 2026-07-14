@@ -325,7 +325,7 @@ r535_gsp_msgq_recv(struct nvkm_gsp *gsp, u32 gsp_rpc_len, int *retries)
 
 		rpc = r535_gsp_msgq_peek(gsp, sizeof(*rpc), info.retries);
 		if (IS_ERR_OR_NULL(rpc)) {
-			kfree(buf);
+			kvfree(buf);
 			return rpc;
 		}
 
@@ -334,7 +334,7 @@ r535_gsp_msgq_recv(struct nvkm_gsp *gsp, u32 gsp_rpc_len, int *retries)
 
 		rpc = r535_gsp_msgq_recv_one_elem(gsp, &info);
 		if (IS_ERR_OR_NULL(rpc)) {
-			kfree(buf);
+			kvfree(buf);
 			return rpc;
 		}
 
@@ -557,6 +557,7 @@ r535_gsp_rpc_handle_reply(struct nvkm_gsp *gsp, u32 fn,
 
 	switch (policy) {
 	case NVKM_GSP_RPC_REPLY_NOWAIT:
+	case NVKM_GSP_RPC_REPLY_NOSEQ:
 		break;
 	case NVKM_GSP_RPC_REPLY_RECV:
 		reply = r535_gsp_msg_recv(gsp, fn, gsp_rpc_len);
@@ -587,6 +588,11 @@ r535_gsp_rpc_send(struct nvkm_gsp *gsp, void *payload,
 		print_hex_dump(KERN_INFO, "rpc: ", DUMP_PREFIX_OFFSET, 16, 1,
 			       rpc->data, rpc->length - sizeof(*rpc), true);
 	}
+
+	if (policy == NVKM_GSP_RPC_REPLY_NOSEQ)
+		rpc->sequence = 0;
+	else
+		rpc->sequence = gsp->rpc_seq++;
 
 	ret = r535_gsp_cmdq_push(gsp, rpc);
 	if (ret)
@@ -637,12 +643,18 @@ r535_gsp_rpc_push(struct nvkm_gsp *gsp, void *payload,
 	if (payload_size > max_payload_size) {
 		const u32 fn = rpc->function;
 		u32 remain_payload_size = payload_size;
+		void *next;
 
-		/* Adjust length, and send initial RPC. */
-		rpc->length = sizeof(*rpc) + max_payload_size;
-		msg->checksum = rpc->length;
+		/* Send initial RPC. */
+		next = r535_gsp_rpc_get(gsp, fn, max_payload_size);
+		if (IS_ERR(next)) {
+			repv = next;
+			goto done;
+		}
 
-		repv = r535_gsp_rpc_send(gsp, payload, NVKM_GSP_RPC_REPLY_NOWAIT, 0);
+		memcpy(next, payload, max_payload_size);
+
+		repv = r535_gsp_rpc_send(gsp, next, NVKM_GSP_RPC_REPLY_NOWAIT, 0);
 		if (IS_ERR(repv))
 			goto done;
 
@@ -653,7 +665,6 @@ r535_gsp_rpc_push(struct nvkm_gsp *gsp, void *payload,
 		while (remain_payload_size) {
 			u32 size = min(remain_payload_size,
 				       max_payload_size);
-			void *next;
 
 			next = r535_gsp_rpc_get(gsp, NV_VGPU_MSG_FUNCTION_CONTINUATION_RECORD, size);
 			if (IS_ERR(next)) {
@@ -674,6 +685,8 @@ r535_gsp_rpc_push(struct nvkm_gsp *gsp, void *payload,
 		/* Wait for reply. */
 		repv = r535_gsp_rpc_handle_reply(gsp, fn, policy, payload_size +
 						 sizeof(*rpc));
+		if (!IS_ERR(repv))
+			kvfree(msg);
 	} else {
 		repv = r535_gsp_rpc_send(gsp, payload, policy, gsp_rpc_len);
 	}
